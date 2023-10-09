@@ -4,6 +4,7 @@ core_start_sector equ 0x0000001;内核程序所在的逻辑扇区
 mov ax,cs 
 mov ss,ax
 mov sp,0x7c00
+
 mov eax, [cs:pgdt+0x7c00+0x02];取得gdt的物理地址
 xor edx,edx
 mov ebx,16;将逻辑地址转化为物理地址
