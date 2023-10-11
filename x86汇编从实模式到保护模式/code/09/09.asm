@@ -228,6 +228,7 @@ put_char:
         add
         loop .cls
     mov bx,1920
+;重置光标
 .set_cursor:
     mov dx,0x34
     mov al,0x0e
