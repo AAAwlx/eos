@@ -48,8 +48,8 @@ SECTION core_data vstart = 0;内核数据段
                    times 256-($-salt_4) db 0
               dd  return_point
               dw  core_code_seg_sel
-salt_item_len equ $-salt_4;一条符号表的大小
-salt_items    equ ($-salt)/salt_item_len;一共有多少条符号表被定义
+    salt_item_len equ $-salt_4;一条符号表的大小
+    salt_items    equ ($-salt)/salt_item_len;一共有多少条符号表被定义
 ;字符信息
         message_1        db  '  If you seen this message,that means we '
                           db  'are now in protect mode,and the system '
@@ -199,6 +199,56 @@ put_char:                                   ;在当前光标处显示一个字�
          ret                                
 
 ;-------------------------------------------------------------------------------
+read_hard_disk_0:
+    push eax
+    push ecx
+    push edx
+
+    push eax
+
+    mov dx,0xf12
+    mov al,1
+    out dx,al
+
+    inc dx
+    pop eax
+    out dx,al
+
+    inc dx
+    mov cl,8
+    shr eax,cl
+    out dx,al
+
+    inc dx
+    shr eax,cl
+    out dx,al
+
+    inc dx
+    shr eax,cl
+    or al,0x0e
+    out dx,al
+
+    inc dx
+    mov al,0x20
+    out dx,al;读命令
+
+  .waits:
+        in al,dx
+        and al,0x88
+        cmp al,0x08
+        jnz .waits
+  .readw:
+    in ax,dx
+    mov [ecx],ax
+    add ebx,2
+    loop .readw
+    pop edx
+    pop ecx
+    pop eax
+      
+    retf
+
+;-------------------------------------------------------------------------------
 ;安装描述符
 set_up_gdt_descriptor:
     push eax
@@ -295,8 +345,172 @@ allocate_memory:
 sys_routine_end:
 ;===============================================================================
 SECTION core_code vstart = 0;内核代码段
+;安装LDT描述符
+fill_descriptor_in_ldt:
+    push eax
+    push edx
+    push edi
+    push ds
+    ;获取LDT的基地址
+    mov ecx,mem_0_4_gb_seg_sel
+    mov ds,ecx
+    mov edi,[es:ebx+0x0c];将LDT的基地址取出来
+    
+    xor ecx,ecx
+    mov cx,[es:ebx+0x0a];获得LDT的界限值
+    inc cx
+    ;安装描述符
+    mov [edi+ecx+0x00],eax
+    mov [edi+ecx+0x04],edx
+    dec cx
+    add cx,8
+    mov [es:ebx+0x0a],cx;将新的界限值重新填入
+    ;拼凑LDT选择子
+    mov ax,cx
+    xor dx,dx
+    mov bx,8
+    div bx
+    mov cx,ax
+    shl cx
+    or cx,0000_0000_0000_0100B         ;使TI位=1，指向LDT，最后使RPL=00 
+    pop ds
+    pop edi
+    pop edx
+    pop eax
 ;装载用户程序
 load_relocate_program: 
+    pushad
+
+    push es
+    push ds
+
+    mov ebp,esp 
+    mov eax,mem_0_4_gb_seg_sel;将全局段选择子放入es附加段中
+    mov es,eax
+    mov esi,[ebp+11*4];将之前压入桟中的tcb块的地址读取出来放入esi中，ebp默认基地址为ess
+
+    mov ecx,160
+    call sys_routine_seg_sel:allocate_memory;为LDT分配地址
+    mov [es:esi+0x0c],ecx;将新分配的内存地址放入tcb的块中，LDT地址
+    mov word[es:esi+0x0a],0xffff;初始化
+    
+    ;加载用户程序
+    mov eax,core_data_seg_sel
+    mov ds,eax;将数据段切换到内核数据段
+
+    mov eax,[ebp+12*4];从桟中取出之前压入的逻辑扇区号
+    mov ebx,[core_buffer];将内核缓冲区的位置当作读取的目的地址传入read_hard_disk_0中
+    call sys_routine_seg_sel:read_hard_disk_0
+
+    ;判断整个程序有多大
+    mov eax,[core_buffer];从用户程序头部读出头部大小
+    mov ebx,eax
+    and ebx,0xfffffe00
+    add ebx,512
+    test eax,0x000001ff;对比看eax是否是512的倍数
+    cmovnz eax,ebx
+    
+    ;分配内存
+    mov ecx,eax;传参
+    call sys_routine_seg_sel:allocate_memory
+    mov [es:esi+0x06],ecx;将用户程序的地址填入tbc块之中
+    
+    ;计算有几个逻辑块
+    mov ebx,ecx;将分配好的地址填入ebx寄存器中等待传参入读取函数中
+    xor edx,edx
+    mov ecx,512
+    div ecx
+    mov ecx,eax;将总扇区数放入计数器中
+    mov eax,mem_0_4_gb_seg_sel;将数据段设置为全局描述符
+    mov ds,eax
+    mov eax,[ebp+12*4];将桟中的磁盘号取出
+
+  .b1:
+    call sys_routine_seg_sel:read_head_disk_0
+    inc eax
+    loop .b1
+
+    ;将头部段安装到LDT中
+    mov edi,[es:esi+0x06];获得程序加载的地址
+    mov eax,edi;获取程序的基地址
+    mov ebx,[es:edi+0x04];获得头部段的长度
+    dec ebx
+    mov ecx,0x0040f200;设置段描述符的属性
+    call sys_routine_seg_sel:make_seg_descriptor;拼凑段描述符
+    mov ebx,esi
+    call fill_descriptor_in_ldt;ebx中存放该任务tcb块的地址作为参数，返回值为选择子
+    or cx,0000_0000_0000_0011B;设置选择子的特权级别为3，RTL
+    mov [edi+0x04],cx;将选择子回填回用户程序开头处
+    mov [es:esi+0x44],cx;将选择子放入tcb块中
+    ;将代码段安装到LDT中
+    mov eax,[edi+0x14]
+    mov ebx,[edi+0x18]
+    dec ebx
+    mov ecx,0x0040f800
+    call sys_routine_seg_sel:make_seg_descriptor 
+    mov ebx,esi
+    call fill_descriptor_in_ldt
+    or cx,0000_0000_0000_0011B
+    mov [edi+0x14],cx
+    ;建立程序数据段描述符
+    mov eax,edi
+    add eax,[edi+0x1c]                 ;数据段起始线性地址
+    mov ebx,[edi+0x20]                 ;段长度
+    dec ebx                            ;段界限 
+    mov ecx,0x0040f200                 ;字节粒度的数据段描述符，特权级3
+    call sys_routine_seg_sel:make_seg_descriptor
+    mov ebx,esi                        ;TCB的基地址
+    call fill_descriptor_in_ldt
+    or cx,0000_0000_0000_0011B         ;设置选择子的特权级为3
+    mov [edi+0x1c],cx                  ;登记数据段选择子到头部
+
+         ;建立程序堆栈段描述符
+         mov ecx,[edi+0x0c]                 ;4KB的倍率 
+         mov ebx,0x000fffff
+         sub ebx,ecx                        ;得到段界限
+         mov eax,4096                        
+         mul ecx                         
+         mov ecx,eax                        ;准备为堆栈分配内存 
+         call sys_routine_seg_sel:allocate_memory
+         add eax,ecx                        ;得到堆栈的高端物理地址 
+         mov ecx,0x00c0f600                 ;字节粒度的堆栈段描述符，特权级3
+         call sys_routine_seg_sel:make_seg_descriptor
+         mov ebx,esi                        ;TCB的基地址
+         call fill_descriptor_in_ldt
+         or cx,0000_0000_0000_0011B         ;设置选择子的特权级为3
+         mov [edi+0x08],cx                  ;登记堆栈段选择子到头部
+
+    ;重定位
+    mov eax,mem_0_4_gb_seg_sel
+    mov es,eax
+    mov eax,core_data_seg_sel
+    mov ds,eax
+    cld
+    mov ecx,[es:edi+0x24];获取u-salt的数量
+    add edi,0x28;
+    .b2:
+        push ecx
+        push edi
+        mov ecx,salt_items
+        mov esi,salt
+        .b3:
+            push edi
+            push esi
+            push ecx
+            mov ecx,64
+            repe cmpsd
+            jnz .b4
+            mov eax,[esi]
+            mov [es:edi-256],eax
+            mov ax,[esi+4]
+            or ax,
+    
+
+
+
+     
+
+
 ;-------------------------------------------------------------------------------
 ;创建tcb调用链,ecx中存储了
 append_to_tcb_link:
@@ -334,7 +548,7 @@ append_to_tcb_link:
 start:
 ;初始化
     mov ecx,core_data_seg_sel
-    mov ds,ecx
+    mov ds,ecxmake_seg_descriptor
     mov ebx,massage_1
     call sys_routine_seg_sel:put_string
     ;显示cpu信息
@@ -393,6 +607,9 @@ start:
 ;从磁盘读取用户程序
     push 50;压入磁盘的逻辑扇区号
     push ecx;将tcb分配的地址压入桟中
+    call load_relocate_program;
+;
+
 ;分配内存空间
 
 ;创建用户程序中对应的段描述符
