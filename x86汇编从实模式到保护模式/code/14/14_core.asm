@@ -310,18 +310,18 @@ append_to_tcb_link:
     mov eax,mem_0_4_gb_seg_sel
     mov es,eax
     
-    mov [es:ecx+0x00],0;将当前tcb指针清零
+    mov [es:ecx+0x00],0;将当前tcb块中的指针清零
 
-    mov eax,[tcb_chain]
-    or eax,eax 
-    jz .notcb
-  .searc:
-    mov edx,eax
-    mov eax,[es:edx+0x00]
-    or eax,eax
-    jnz .searc
+    mov eax,[tcb_chain];将tcb头指针指向的地址放入内存
+    or eax,eax;对比看头指针是否为空 
+    jz .notcb;如果为空就跳转
+  .searc:;若指针不为空
+    mov edx,eax;将首块tcb地址放入edx中
+    mov eax,[es:edx+0x00];从首块tcb块的指针中拿到下一块的地址
+    or eax,eax;对比该指针是否为空
+    jnz .searc;若不为空则循环向后找到最后一个tcb块
 
-    mov [es:edx+0x00],ecx
+    mov [es:edx+0x00],ecx;将新的tcb块首地址放入最后一个块的指针内
     jmp .retcp
   .notcb:
     mov [tcb_chain],ecx
@@ -391,6 +391,8 @@ start:
     call sys_routine_seg_sel:allocate_memory
     call append_to_tcb_link
 ;从磁盘读取用户程序
+    push 50;压入磁盘的逻辑扇区号
+    push ecx;将tcb分配的地址压入桟中
 ;分配内存空间
 
 ;创建用户程序中对应的段描述符
