@@ -480,7 +480,7 @@ load_relocate_program:
          or cx,0000_0000_0000_0011B         ;设置选择子的特权级为3
          mov [edi+0x08],cx                  ;登记堆栈段选择子到头部
 
-    ;重定位
+    ;重定位salt
     mov eax,mem_0_4_gb_seg_sel
     mov es,eax
     mov eax,core_data_seg_sel
@@ -500,17 +500,112 @@ load_relocate_program:
             mov ecx,64
             repe cmpsd
             jnz .b4
-            mov eax,[esi]
-            mov [es:edi-256],eax
-            mov ax,[esi+4]
-            or ax,
+            mov eax,[esi];从内核代码段中取出段内偏移地址
+            mov [es:edi-256],eax;将内核段内偏移地址填入用户代码段，代替调用符号
+            mov ax,[esi+4];读出段选择子
+            or ax,0000_0000_0000_0011B;将段选择子由内核权限降至用户权限
+            mov [es:di-252],ax;回填到用户程序
+        .b4
+            pop ecx
+            pop esi
+            add esi,salt_item_len
+            pop edi
+            add edi
+            loop .b3
+        pop edi
+        add edi,256
+        pop ecx
+        loop .b2 
     
+    ;创建1级特权堆栈   
+    mov ecx,[ebp+11*4]
+    mov ecx,4096
+    mov eax,ecx
+    mov [es:esi+0x1a],ecx
+    shl dword[es:esi+0x1a],12
+    call sys_routine_seg_sel:allocate_memory
+    add eax,ecx;桟由高地址到低地址，在基地址的基础上加上要分配的字节数就是桟的起点
+    mov [es:esi+0x2c],eax;eax为基地址
+    mov ebx,0xffffe                    ;段长度（界限）
+    mov ecx,0x00c0b600                 ;4KB粒度，读写，特权级1
+    call sys_routine_seg_sel:make_seg_descriptor
+    mov ebx,esi
+    call fill_descriptor_in_ldt
+    or cx,0000_0000_0000_0001B
+    mov [es:esi+0x30],cx
+    mov dword [es:esi+0x32],0;初始esp指针
+    
+    ;创建2特权级堆栈
+    mov ecx,4096
+    mov eax,ecx                        ;为生成堆栈高端地址做准备
+    mov [es:esi+0x36],ecx
+    shr [es:esi+0x36],12               ;登记2特权级堆栈尺寸到TCB
+    call sys_routine_seg_sel:allocate_memory
+    add eax,ecx                        ;堆栈必须使用高端地址为基地址
+    mov [es:esi+0x3a],ecx              ;登记2特权级堆栈基地址到TCB
+    mov ebx,0xffffe                    ;段长度（界限）
+    mov ecx,0x00c0d600                 ;4KB粒度，读写，特权级2
+    call sys_routine_seg_sel:make_seg_descriptor
+    mov ebx,esi                        ;TCB的基地址
+    call fill_descriptor_in_ldt
+    or cx,0000_0000_0000_0010          ;设置选择子的特权级为2
+    mov [es:esi+0x3e],cx               ;登记2特权级堆栈选择子到TCB
+    mov dword [es:esi+0x40],0          ;登记2特权级堆栈初始ESP到TCB
+    
+    ;在GDT中写入LDT描述符表的起始位置
+    mov eax,[es:esi+0x0c];基地址
+    mov ebx,word[es:esi+0x0a];段界限
+    mov ecx,0x00408200
+    call sys_routine_seg_sel:make_seg_descriptor;在使用时将当前LDT描述符加载入LDTR之中
+    call sys_routine_seg_sel:set_up_gdt_descriptor
+    mov [es:esi+0x10],cx               ;登记LDT选择子到TCB中
+    ;创建tss段
+    mov ecx,104
+    mov [es:esi+0x12],cx
+    dec word [es:esi+0x12]             ;登记TSS界限值到TCB 
+    call sys_routine_seg_sel:allocate_memory
+ ;登记基本的TSS表格内容
+    mov word [es:ecx+0],0              ;反向链=0
+      
+    mov edx,[es:esi+0x24]              ;登记0特权级堆栈初始ESP
+    mov [es:ecx+4],edx                 ;到TSS中
+      
+    mov dx,[es:esi+0x22]               ;登记0特权级堆栈段选择子
+    mov [es:ecx+8],dx                  ;到TSS中
+      
+    mov edx,[es:esi+0x32]              ;登记1特权级堆栈初始ESP
+    mov [es:ecx+12],edx                ;到TSS中
 
+    mov dx,[es:esi+0x30]               ;登记1特权级堆栈段选择子
+    mov [es:ecx+16],dx                 ;到TSS中
 
+    mov edx,[es:esi+0x40]              ;登记2特权级堆栈初始ESP
+    mov [es:ecx+20],edx                ;到TSS中
 
-     
+    mov dx,[es:esi+0x3e]               ;登记2特权级堆栈段选择子
+    mov [es:ecx+24],dx                 ;到TSS中
 
+    mov dx,[es:esi+0x10]               ;登记任务的LDT选择子
+    mov [es:ecx+96],dx                 ;到TSS中
+      
+    mov dx,[es:esi+0x12]               ;登记任务的I/O位图偏移
+    mov [es:ecx+102],dx                ;到TSS中 
+      
+    mov word [es:ecx+100],0            ;T=0
+       
+    ;在GDT中登记TSS描述符
+    mov eax,[es:esi+0x14]              ;TSS的起始线性地址
+    movzx ebx,word [es:esi+0x12]       ;段长度（界限）
+    mov ecx,0x00408900                 ;TSS描述符，特权级0
+    call sys_routine_seg_sel:make_seg_descriptor
+    call sys_routine_seg_sel:set_up_gdt_descriptor
+    mov [es:esi+0x18],cx               ;登记TSS选择子到TCB
 
+    pop es                             ;恢复到调用此过程前的es段 
+    pop ds                             ;恢复到调用此过程前的ds段
+    popad
+      
+    ret 8                              ;丢弃调用本过程前压入的参数 
 ;-------------------------------------------------------------------------------
 ;创建tcb调用链,ecx中存储了
 append_to_tcb_link:
@@ -608,11 +703,14 @@ start:
     push 50;压入磁盘的逻辑扇区号
     push ecx;将tcb分配的地址压入桟中
     call load_relocate_program;
+
+    mov ebx,do_status
+    call sys_routine_seg_sel:put_string
+
+    
+
+
 ;
-
-;分配内存空间
-
-;创建用户程序中对应的段描述符
 ;===============================================================================
 
 core_end:
