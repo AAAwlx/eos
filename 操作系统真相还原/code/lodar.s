@@ -53,18 +53,37 @@ mov edx,eax
 add ebx,20
 loop .find_max
 jmp .mem_get_ok
-;.try_to_0xe801:
-;mov eax,0xe801 
-;int 0x15
-;jc.
-;inc [ards_nr]
-;loop .try_to_0xe801
+try_to_0xe801:
+mov eax,0xe801
+int 0x15
+jc .try_to_0x88
+mov cx,0x400
+mul cx
+shl edx,16
+and eax,0x0000ffff;将高十六位清零
+or edx,eax
+add edx,0x100000
+mov esi,edx
+xor eax,eax
+mov ax,bx
+mov ecx,0x100000
+mul ecx
+add eax,esi
+mov edx,eax
+jmp .mem_get_ok 
+.try_to_0x88:
+mov ah,0x88
+int 0x15
+jc .error_hlt
+and eax,0x0000ffff
+mov cx,0x400
+mul cx
+shl edx,16
+or edx,eax
+add edx,0x100000
+add edx,
 .mem_get_ok:
 mov [total_mem_bytes],edx
-;读入内核程序
-
-
-
 in eax,0x92
 or eax,0000_0010B
 out 0x92,eax
@@ -144,7 +163,7 @@ init_kernel:
    xor ebx, ebx		;ebx记录程序头表地址
    xor ecx, ecx		;cx记录程序头表中的program header数量
    xor edx, edx		;dx 记录program header尺寸,即e_phentsize
-   mov dx,[KERNEL_BIN_BASE_ADDR+42]
+   mov dx,[KERNEL_BIN_BASE_ADDR+42];一个program的大小
    mov ebx,[KERNEL_BIN_BASE_ADDR+28]; 偏移文件开始部分28字节的地方是e_phoff,表示第1 个program header在文件中的偏移量
    add ebx,KERNEL_BIN_BASE_ADDR
    mov ecx,[KERNEL_BIN_BASE_ADDR+44];表项数目
@@ -155,12 +174,12 @@ init_kernel:
   mov eax,[ebx+4];表项距离文件头的偏移量
   add eax,KERNEL_BIN_BASE_ADDR;
   push eax;表段的起始地址,源地址
-  push,[ebx+8];在编译时生成的目的地址
+  push,[ebx+8];在编译时生成的程序被加载的目的地址
   call mem_cpy
   add esp,12;将之前传入的参数丢弃
 .PTNULL:
   add ebx,edx
-  loop init_kernel
+  loop .each_segment
   ret
 mem_cpy:
 cld 
