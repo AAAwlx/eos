@@ -1,3 +1,4 @@
+
 %include "boot.inc"
 SECTION MBR vstart=0x7c00
 ;初始化
@@ -45,10 +46,10 @@ mov al,cl;要读取的扇区数
 out dx,al
 ;将物理磁盘起始的28位置写入端口
 mov eax,esi;恢复eax
-inc dx;0x1f3
+mov dx,0x1f3;0x1f3
 out dx,al
 mov cl,8
-inc dx;0x1f4
+mov dx,0x1f4;0x1f4
 shr eax,cl
 out dx,al
 inc dx;0x1f5
@@ -58,6 +59,7 @@ inc dx;0x1f6
 shr eax,cl
 and al,0x0f;将最低四位保留
 or al,0xe0;设置lab模式，磁盘分chs与lab两种模式
+out dx,al
 inc dx;0x1f7
 mov al,0x20;写入读模式
 out dx,al
