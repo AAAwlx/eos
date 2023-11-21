@@ -1,29 +1,38 @@
-;数据段
-;定义gdt描述符各段
 %include "boot.inc"
-SECTION loader vstart=LOADER_BASE_ADDR
-GDT_BASE dd    0x00000000 
-	     dd    0x00000000
-CODE_DECS dd 0x0000ffff
-          dd DESC_CODE_HIGH4
-DATA_STACK_DECS dd 0x0000ffff
-                dd DESC_DATA_HIGH4
-VIDEO_DECS dd 0x80000007
-            dd DESC_VIDEO_HIGH4
-GDT_SIZE equ $-GDT_BASE
-GDT_LIMIT equ GDT_SIZE-1
-times 60 dq 0;为gdt预留空间
-SECTION_COED equ (0X0001<<3)+TI_GDT+RPL0;序号前移3位，将段选择子类型和权限加上
-SECTION_DATA equ (0X0002<<3)+TI_GDT+RPL0
-SECTION_VIDEO equ (0X0003<<3)+TI_GDT+RPL0
+   section lodar vstart=LOADER_BASE_ADDR
+;构建gdt及其内部的描述符
+   GDT_BASE:   dd    0x00000000 
+	       dd    0x00000000
 
+   CODE_DESC:  dd    0x0000FFFF 
+	       dd    DESC_CODE_HIGH4
 
-;定义存储内存大小的字段
-total_mem_bytes dd 0;四字节总的内存大小
-gdt_ptr dw GDT_LIMIT;gdt指针前两位是双字
-        dd GDT_BASE;gdt界限
-ards_buf times 244 db  0
-ards_nr dw 0;一共有多少个结构体
+   DATA_STACK_DESC:  dd    0x0000FFFF
+		     dd    DESC_DATA_HIGH4
+
+   VIDEO_DESC: dd    0x80000007	       ; limit=(0xbffff-0xb8000)/4k=0x7
+	       dd    DESC_VIDEO_HIGH4  ; 此时dpl为0
+
+   GDT_SIZE   equ   $ - GDT_BASE
+   GDT_LIMIT   equ   GDT_SIZE -	1 
+   times 60 dq 0					 ; 此处预留60个描述符的空位(slot)
+   SELECTOR_CODE equ (0x0001<<3) + TI_GDT + RPL0         ; 相当于(CODE_DESC - GDT_BASE)/8 + TI_GDT + RPL0
+   SELECTOR_DATA equ (0x0002<<3) + TI_GDT + RPL0	 ; 同上
+   SELECTOR_VIDEO equ (0x0003<<3) + TI_GDT + RPL0	 ; 同上 
+
+   ; total_mem_bytes用于保存内存容量,以字节为单位,此位置比较好记。
+   ; 当前偏移loader.bin文件头0x200字节,loader.bin的加载地址是0x900,
+   ; 故total_mem_bytes内存中的地址是0xb00.将来在内核中咱们会引用此地址
+   total_mem_bytes dd 0					 
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   ;以下是定义gdt的指针，前2字节是gdt界限，后4字节是gdt起始地址
+   gdt_ptr  dw  GDT_LIMIT 
+	    dd  GDT_BASE
+
+   ;人工对齐:total_mem_bytes4字节+gdt_ptr6字节+ards_buf244字节+ards_nr2,共256字节
+   ards_buf times 244 db 0
+   ards_nr dw 0		      ;用于记录ards结构体数量
 ;程序主体部分
 loaderstart:
 ;获取内存大小
@@ -35,8 +44,8 @@ mov eax,0x0000e820
 mov ecx,20
 int 0x15
 jc .try_to_0xe801
-inc word [ards_nr]
 add di,cx
+inc word [ards_nr]
 cmp ebx,0
 jnz .by_Oxe820
 ;选出最大的内存块
@@ -90,17 +99,17 @@ lgdt [gdt_ptr]
 mov eax,cr0
 or eax,0x00000001;开启pe位
 mov cr0,eax
-jmp dword SECTION_COED:flush
+jmp dword SELECTOR_CODE:flush
 .error_hlt:
   hlt
 [bits 32]
 flush:
-mov ax,SECTION_DATA
+mov ax,SELECTOR_DATA
 mov ds,ax
 mov ss,ax
 mov es,ax
 mov esp,LOADER_STACK_TOP
-mov ax,SECTION_VIDEO
+mov ax,SELECTOR_VIDEO
 mov gs,ax
 mov eax,KERNEL_START_SECTOR
 mov ebx,KERNEL_BIN_BASE_ADDR
@@ -135,7 +144,7 @@ lgdt [gdt_ptr];
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;  此时不刷新流水线也没问题  ;;;;;;;;;;;;;;;;;;;;;;;;
 ;由于一直处在32位下,原则上不需要强制刷新,经过实际测试没有以下这两句也没问题.
 ;但以防万一，还是加上啦，免得将来出来莫句奇妙的问题.
-   jmp SECTION_COED:enter_kernel	  ;强制刷新流水线,更新gdt
+   jmp SELECTOR_CODE:enter_kernel	  ;强制刷新流水线,更新gdt
 enter_kernel:    
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    mov byte [gs:320], 'k'     ;视频段段基址已经被更新
@@ -207,15 +216,16 @@ mov eax,PAGE_DIR_TABLE_POS
 add eax,0x1000
 mov ebx,eax
 
-or eax,PG_RW_W|PG_US_S|PG_P
-mov [PAGE_DIR_TABLE_POS],eax
+or eax,PG_US_U | PG_RW_W | PG_P
+mov [PAGE_DIR_TABLE_POS+0x0],eax
 mov [PAGE_DIR_TABLE_POS+0xc00],eax
 sub eax,0x1000
 mov [PAGE_DIR_TABLE_POS+4092],eax
 ;设置低1m内容
 mov ecx,256
-mov edx,PG_RW_W|PG_US_S|PG_P
 mov esi,0
+mov edx,PG_US_U | PG_RW_W | PG_P
+
 .create_pte:
 mov [ebx+esi *4],edx
 add edx,4096;增加一页的大小
@@ -224,14 +234,14 @@ loop .create_pte
 ;将第769位之后的1GB系统空间
 mov eax,PAGE_DIR_TABLE_POS
 add eax,0x2000
-or eax,PG_RW_W|PG_US_U|PG_P
+or eax,PG_US_U | PG_RW_W | PG_P
 mov ebx, PAGE_DIR_TABLE_POS
 mov esi,769
 mov ecx,254
 .create_pde:
 mov [ebx+esi*4],eax;
 inc esi
-add ax,0x1000
+add eax,0x1000
 loop .create_pde
 ret
 rd_disk_m_32:	   
