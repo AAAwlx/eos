@@ -117,7 +117,7 @@ put_char:
 global put_int
 put_int:
 pushad
-mov eax,[esp+4*9]
+mov eax,[esp+4*9];从栈中取出待打印的数字
 mov edx,eax;将edx备份
 mov edi,7
 mov ecx,8
