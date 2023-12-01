@@ -2,7 +2,9 @@
 #include "stdint.h"
 //向端口写入单个数据
  inline void outb(uint16_t port,uint8_t value){
-    asm volatile("outb %b0,%w1" ::"a"(value), "Nd"(port));
+    asm volatile("outb %b0,%w1" 
+    :
+    :"a"(value), "Nd"(port));
 }
 //向端口写入连续的一串数据
  inline void outw(uint16_t port,const void* addr,uint32_t size){

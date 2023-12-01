@@ -6,16 +6,17 @@
 #define PIC_M_DATA 0x21	       // 主片的数据端口是0x21
 #define PIC_S_CTRL 0xa0	       // 从片的控制端口是0xa0
 #define PIC_S_DATA 0xa1	       // 从片的数据端口是0xa1
-
 #define IDT_DESC_CNT 0x21      // 目前总共支持的中断数
-typedef struct 
-{
+
+#define FLAGS_IF 0X00000200//将if位改为1
+#define GET_FLAGS(EFLAG_VAR) asm volatile("pushfl;pop %0" : "=g"(EFLAG_VAR));//将
+typedef struct {
     uint16_t lower_offset;//段内偏移低十六位
     uint16_t segment_selector;//对应代码段的选择子
     uint8_t dcount;//没用的八位
     uint8_t type;//位的类型
     uint16_t higt_offset;//段内偏移高十六位
-}gate_descriptor;
+} gate_descriptor;
 intr_handler idt_table[IDT_DESC_CNT];//中断对应的处理程序
 gate_descriptor idt[IDT_DESC_CNT];//中断描述符表
 extern intr_handler idt_table_entry[IDT_DESC_CNT];//在外部定义了一个中断处理程序的入口点，kernel中的汇编程序地址
@@ -89,6 +90,43 @@ static void exception_init()
     intr_name[18] = "#MC Machine-Check Exception";
     intr_name[19] = "#XF SIMD Floating-Point Exception";
 
+}
+//开中断并返回开中断前的状态 
+enum intr_status intr_enable()
+{
+    enum intr_status old_status;
+    if(get_status()==INTR_OFF){
+        old_status = INTR_OFF;
+        asm volatile("sti");
+    } else {
+        old_status = INTR_NO;
+    }
+    return old_status;
+}
+//关中断
+enum intr_status intr_disable()
+{
+    enum intr_status old_status;
+    if(get_status()==INTR_OFF){
+        old_status = INTR_OFF; 
+        
+    } else {
+        old_status = INTR_NO;
+        asm volatile("cli" : : : "memory");
+    }
+    return old_status;
+}
+//设置中断状态
+enum intr_status set_status(enum intr_status new_status)
+{
+    return (new_status & FLAGS_IF) ? intr_enable() : intr_disable();
+}
+//获取中断状态
+enum intr_status get_status()
+{
+    uint32_t efalg=0;
+    GET_FLAGS(efalg);
+    return (efalg & FLAGS_IF) ? INTR_NO : INTR_OFF;
 }
 void idt_init() {
     put_str("idt_init start\n");
