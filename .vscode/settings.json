@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "compare": "cpp",
+        "cstdint": "cpp",
+        "io.h": "c",
+        "interrupt.h": "c",
+        "global.h": "c",
+        "random": "c"
+    }
+}
