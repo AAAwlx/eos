@@ -134,6 +134,6 @@ void idt_init() {
     exception_init();	   // 异常名初始化并注册通常的中断处理函数
     pic_init();		   // 初始化8259A
     uint64_t idt_operand = ((sizeof(idt) - 1) | ((uint64_t)(uint32_t)idt << 16));
-    asm volatile("lidt %0" : : "m" (idt_operand));
+    asm volatile("lidt %0" : : "m" (idt_operand));//m表示使用内存操作数
     put_str("idt_init done\n");
 }
