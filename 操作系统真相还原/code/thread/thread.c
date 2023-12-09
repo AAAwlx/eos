@@ -1,9 +1,12 @@
 #include"thread.h"
 #include"memory.h"
 #include"debug.h"
+#include"interrupt.h"
 struct list* general_list;//就绪任务队列
 struct list* all_list;//全部任务队列
 struct task_pcb* main_thread;//如果是主线程  
+static struct list_node* thread_tag;// 用于临时保存队列中的线程结点
+static struct list_node* general_tag;
 //获取当前函数pcb块的起始地址
 struct task_pcb* running_thread()
 {
@@ -58,12 +61,31 @@ struct task_pcb* thread_start(char* name, int prio, thread_func function, void* 
     ASSERT(!elem_find(&all_list, &thread->general_tag));
     list_append(&all_list, &thread->general_tag);
 }
-void main_thread_init()
+static void main_thread_init()
 {
     main_thread=running_thread();
     init_thread(main_thread, "main", 31);
     ASSERT(!elem_find(&all_list, &main_thread->general_tag));
     list_append(&all_list, &main_thread->general_tag);
+}
+void schedule()
+{
+    ASSERT(get_status() == INTR_OFF);
+    struct task_pcb* cur = running_thread();
+    if (cur->status==TASK_RUNNING) {//如果当前任务是运行中的状态
+        ASSERT(!elem_find(&general_list, &cur->general_tag));
+        cur->ticks = cur->priority;
+        cur->status = TASK_READY;
+        list_append(&general_list, &cur->general_tag);  // 将任务加入到就绪的队尾
+    } else {//如果线程在等待某个事件
+
+    }
+    ASSERT(!list_empty(&general_list));
+    thread_tag = NULL;
+    thread_tag = list_pop(&general_list);
+    struct task_pcb* next = elem2entry(struct task_pcb , general_tag, thread_tag);
+    next->status = TASK_RUNNING;
+    switch_to();
 }
 //初始化线程执行的环境
 void thread_init(void)

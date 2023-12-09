@@ -59,9 +59,25 @@ static void general_intr_handler(uint8_t vec_nr)//中断处理函数的参数.
     if(vec_nr==0x27||vec_nr==0x2f){
         return;
     }
+    int count = 0;
+    while (count<320) {
+        put_str(' ');
+        count++;
+    }
+    set_cursor(0);
+    put_str('! ! ! ! ! ! ! ! excetion message begin ! ! ! ! ! ! ! ! \n ”');
+    set_cursor(88);
+    put_str(intr_name[vec_nr]);
+    if (vec_nr==14)//缺页中断
+    {
+        int page_fault_veddr = 0;
+        asm("mov %%cr2,%0" : "=r"(page_fault_veddr));//从cr2中取值，放入任意寄存器中并将值输出至page_fault_veddr 
+        put_str ("\ npage fault addr is ") ;
+        put_int(page_fault_veddr);
+    }
+    put_str('! ! ! ! ! ! ! ! excetion message end ! ! ! ! ! ! ! ! \n ”');
     put_str("int vector: 0x");
-    put_int(vec_nr);
-    put_char('\n');
+    while (1);
 }
 static void exception_init()
 {
@@ -127,6 +143,10 @@ enum intr_status get_status()
     uint32_t efalg=0;
     GET_FLAGS(efalg);
     return (efalg & FLAGS_IF) ? INTR_NO : INTR_OFF;
+}
+void register_hsndler(uint32_t inrtnum,intr_handler fucntion)
+{
+    idt_table[inrtnum] = fucntion;
 }
 void idt_init() {
     put_str("idt_init start\n");
