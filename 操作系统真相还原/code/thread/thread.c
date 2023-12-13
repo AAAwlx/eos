@@ -87,6 +87,34 @@ void schedule()
     next->status = TASK_RUNNING;
     switch_to();
 }
+//阻塞线程自己
+void thread_lock(enum task_stat stat)
+{
+    ASSERT(((stat == TASK_BLOCKED) || (stat == TASK_WAITING) ||
+            (stat == TASK_HANGING)));  // 判断当前要阻塞线程的状态
+    enum intr_status intr = intr_disable();//关中断
+    struct task_pcb *cur = running_thread();//获取当前线程的pcb
+    cur->status = stat;
+    schedule();
+    intr_set_status(intr);
+}
+//唤醒被阻塞线程
+void thread_unlock(struct task_pcb* pthread)
+{
+    ASSERT(((pthread->status == TASK_BLOCKED) || (pthread->status == TASK_WAITING) || (pthread->status == TASK_HANGING)));//判断线程是否被锁住
+    enum intr_status intr = intr_disable();//关中断
+    if (pthread->status!=TASK_READY)
+    {
+        ASSERT(!elem_find(&general_list, &pthread->general_tag));//再次判断，若在就绪队列中则报错
+        if (elem_find(&general_list,&pthread->general_tag))
+        {
+            PANIC("thread_unblock: blocked thread in ready_list\n");
+        }
+        pthread->status = TASK_READY;//更改线程状态
+        list_push(&general_list, &pthread->general_tag);//将当前任务放入就绪队首，尽快得到调度
+    }
+    intr_set_status(intr);
+}
 //初始化线程执行的环境
 void thread_init(void)
 {

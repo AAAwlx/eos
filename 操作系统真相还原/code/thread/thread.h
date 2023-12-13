@@ -75,4 +75,6 @@ struct task_pcb* thread_start(char* name, int prio, thread_func function, void* 
 struct task_pcb* running_thread(void);
 void schedule(void);
 void thread_init(void);
+void thread_unlock(struct task_pcb* pthread);
+void thread_lock(enum task_stat stat);
 #endif
