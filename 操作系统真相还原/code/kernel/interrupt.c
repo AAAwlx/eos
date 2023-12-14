@@ -1,12 +1,12 @@
 #include "io.h"
 #include "interrupt.h"
 #include "global.h"
-#include"printf.h"
+#include"print.h"
 #define PIC_M_CTRL 0x20	       // 这里用的可编程中断控制器是8259A,主片的控制端口是0x20
 #define PIC_M_DATA 0x21	       // 主片的数据端口是0x21
 #define PIC_S_CTRL 0xa0	       // 从片的控制端口是0xa0
 #define PIC_S_DATA 0xa1	       // 从片的数据端口是0xa1
-#define IDT_DESC_CNT 0x21      // 目前总共支持的中断数
+#define IDT_DESC_CNT 0x30      // 目前总共支持的中断数
 
 #define FLAGS_IF 0X00000200//将if位改为1
 #define GET_FLAGS(EFLAG_VAR) asm volatile("pushfl;pop %0" : "=g"(EFLAG_VAR));//将
@@ -49,7 +49,7 @@ static void pic_init()
     outb (PIC_S_DATA, 0x01);    // ICW4: 8086模式, 正常EOI
 
     /* 打开主片上IR0,也就是目前只接受时钟产生的中断 */
-    outb (PIC_M_DATA, 0xfe);
+    outb (PIC_M_DATA, 0xfd);
     outb (PIC_S_DATA, 0xff);
 
     put_str("pic_init done\n");

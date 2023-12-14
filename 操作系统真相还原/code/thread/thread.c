@@ -2,6 +2,7 @@
 #include"memory.h"
 #include"debug.h"
 #include"interrupt.h"
+#include "print.h"
 struct list* general_list;//就绪任务队列
 struct list* all_list;//全部任务队列
 struct task_pcb* main_thread;//如果是主线程  

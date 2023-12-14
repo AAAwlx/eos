@@ -5,6 +5,10 @@
         "io.h": "c",
         "interrupt.h": "c",
         "global.h": "c",
-        "random": "c"
+        "random": "c",
+        "sysnc.h": "c",
+        "debug.h": "c",
+        "printf.h": "c",
+        "print.h": "c"
     }
 }

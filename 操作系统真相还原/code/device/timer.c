@@ -1,5 +1,5 @@
 #include "io.h"
-#include "printf.h"
+#include "print.h"
 #include "time.h"
 #include "interrupt.h"
 #include "thread.h"
@@ -37,5 +37,5 @@ void init_time()
     put_str(" timer init start\n ");
     frequency_set(CONTRER0_PORT, READ_WRITE_LATCH, COUNTER_MODE, COUNTER0_NO,COUNTER0_VALUE);
     register_hsndler(0x20,intr_timer_handler);
-    put_str();
+    
 }

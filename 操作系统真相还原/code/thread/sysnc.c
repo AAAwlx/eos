@@ -39,7 +39,7 @@ void sema_up(struct semaphore* psema)//增加信号量
     {
         if (!list_empty(&psema->waiters))
         {
-            struct task_pcb* pthread = elem2entry(struct task_struct, general_tag, list_pop(&psema->waiters));
+            struct task_pcb* pthread = elem2entry(struct task_pcb, general_tag, list_pop(&psema->waiters));
             thread_unlock(pthread);
         }
 

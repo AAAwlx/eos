@@ -1,4 +1,4 @@
-#include"printf.h"
+#include"print.h"
 #include"debug.h"
 void panic_spin(char* file, int line, char* func, char* condition)
 {
