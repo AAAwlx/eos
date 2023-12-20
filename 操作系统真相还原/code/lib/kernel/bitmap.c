@@ -1,4 +1,4 @@
-#include"string.h"
+#include"../lib/string.h"
 #include"bitmap.h"
 #include"debug.h"
 void bitmap_init(struct bitmap* btmp)
@@ -9,7 +9,7 @@ bool bitmap_scan_test(struct bitmap* btmp, uint32_t bit_idx)//比较当前位是
 {
     uint32_t byte_idx = bit_idx / 8;
     uint32_t bit_old = bit_idx % 8;
-    return (btmp->bits[bit_idx] & (BITMAP_MASK << bit_old));
+    return (btmp->bits[byte_idx] & (BITMAP_MASK << bit_old));
 }
 int bitmap_scan(struct bitmap* btmp, uint32_t cnt)
 {
