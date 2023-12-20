@@ -1,6 +1,6 @@
 #ifndef __KERNEL_INTERRUPT_H
 #define __KERNEL_INTERRUPT_H
-#include "stdint.h"
+#include "../lib/stdint.h"
 typedef void* intr_handler;//程序的地址
 void idt_init(void);
 void register_hsndler(uint32_t inrtnum, intr_handler fucntion);

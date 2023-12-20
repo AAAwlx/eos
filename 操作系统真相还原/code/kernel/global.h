@@ -1,6 +1,6 @@
 #ifndef __KERNEL_GLOBAL_H
 #define __KERNEL_GLOBAL_H
-#include "stdint.h"
+#include "../lib/stdint.h"
 
 
 // ----------------  GDT描述符属性  ----------------

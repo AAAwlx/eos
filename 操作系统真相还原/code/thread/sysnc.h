@@ -1,7 +1,7 @@
 #ifndef __THREAD_SYNC_H
 #define __THREAD_SYNC_H
 #include "list.h"
-#include "stdint.h"
+#include "../lib/stdint.h"
 #include "thread.h"
 struct semaphore {
    uint8_t  value;//信号量的值

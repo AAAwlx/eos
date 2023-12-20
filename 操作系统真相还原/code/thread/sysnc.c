@@ -23,7 +23,7 @@ void sema_down(struct semaphore* psema)//减少信号量
         
         if (elem_find(&psema->waiters, &(running_thread()->general_tag)))
         {
-            PANIC_SPIN("sema_down: thread blocked has been in waiters_list\n");
+            PANIC("sema_down: thread blocked has been in waiters_list\n");
         }
         thread_lock(TASK_BLOCKED);
         list_append(&psema->waiters, &(running_thread()->general_tag));

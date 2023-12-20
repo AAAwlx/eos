@@ -1,6 +1,6 @@
 #ifndef __THREAD_THREAD_H
 #define __THREAD_THREAD_H
-#include "stdint.h"
+#include "../lib/stdint.h"
 #include"list.h"
 typedef void thread_func(void*);
 enum task_stat {

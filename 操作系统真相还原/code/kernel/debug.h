@@ -1,16 +1,18 @@
-#ifndef _KETNEL_DEBUG_
-#define _KETNEL_DEBUG_
-void panic_spin(char* file, int line, char* func, char* condition);
-#define PANIC_SPIN(...)(__FILE__, __LINE__, __func__, __VA_ARGS__) 
-//如果不执行debug就将整个宏定义为空，以减小程序的体积
+#ifndef __DEBUG_H_
+#define __DEBUG_H_
+void panic_spin(char* filename, int line, const char* func,
+                const char* condition);
+
+#define PANIC(...) panic_spin(__FILE__, __LINE__, __func__, __VA_ARGS__)
+
 #ifdef NDEBUG
-    #define ASSERT(CONDITION)((void)0) 
+#define ASSERT(CONDITION) ((void)0)
 #else
-    #define ASSERT(CONDITION)\
-    if(CONDITION){              \
-                                \
-    }else{                      \
-        PANIC_SPIN(#CONDITION); \
-    }                           
-#endif
-#endif
+#define ASSERT(CONDITION) \
+  if (CONDITION) {        \
+  } else {                \
+    PANIC(#CONDITION);    \
+  }
+#endif /*NDEBUG*/
+
+#endif /*__DEBUG_H_*/

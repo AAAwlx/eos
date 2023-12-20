@@ -1,3 +1,4 @@
+ife 1
 TI_GDT equ 0
 RPL0 equ 0
 SELECTOR_VIDEO equ (0x0003<<3)+TI_GDT+PRL0
@@ -7,7 +8,7 @@ SECTION .data
   str_buf dq 0
 [bits 32]
 
-SECTION .code
+SECTION .text
 ;打印字符串
 global put_str
 put_str:
@@ -60,7 +61,7 @@ put_char:
 	jmp .put_other:;如果都不是是普通字符
 	.is_backspace:
 	dec bx
-	shl,1
+	shl bx,1
 	mov byte[gs:bx],0x20
 	inc bx
 	mov byte[gs:bx],0x07
@@ -88,11 +89,11 @@ put_char:
 	roll_screen:;
 	cld
 	mov ecx,960
-	mov si 0x8000
-	mov di 0x80a0
+	mov si ,0x8000
+	mov di ,0x80a0
 	rep movsd 
-	mov ebx 3480
-	mov ecx 80
+	mov ebx ,3480
+	mov ecx ,80
 	.cls:
 		mov word[gs:ebx],0x720
 		add ebx,2
@@ -150,7 +151,7 @@ cmp cl,'0';如果当前位是0就跳过
 je .cmp_prefix_0;判断是不是八位数字都是0
 dec edi;如果当前位不是0就将偏移量减一恢复当前位
 jmp .put_num
-.full0
+.full0:
 mov cl ,'0'
 .put_num:
 push ecx
@@ -180,3 +181,4 @@ pushad
    out dx, al
    popad
    ret
+endif
