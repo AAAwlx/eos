@@ -20,11 +20,11 @@ static void frequency_set(uint8_t counter_port,uint8_t rwl,uint8_t counter_mode,
 }
 static void intr_timer_handler(void)
 {
-    put_str("timeintr\n");
+    //put_str("timeintr\n");
     struct task_pcb* cur = running_thread();
     ASSERT(cur->stack_magic == 0x12345678);
     cur->elapsed_ticks++;
-    sys_ticks++;
+    //sys_ticks++;
     if (cur->ticks==0)
     {
         schedule();
@@ -37,6 +37,6 @@ void init_time()
 {
     put_str(" timer init start\n ");
     frequency_set(CONTRER0_PORT, READ_WRITE_LATCH, COUNTER_MODE, COUNTER0_NO,COUNTER0_VALUE);
-    //register_hsndler(0x20,intr_timer_handler);
+    register_hsndler(0x20,intr_timer_handler);
     put_str("timer_init done\n");
 }

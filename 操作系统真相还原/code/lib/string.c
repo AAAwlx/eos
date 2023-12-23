@@ -1,6 +1,7 @@
 #include"string.h"
 #include"debug.h"
 #include"global.h"
+#include"print.h"
 void memset(void *dst_,uint8_t value,uint32_t size)
 {
     ASSERT(dst_!=NULL);
@@ -41,8 +42,9 @@ int memcmp(const void* a_, const void* b_, uint32_t size)
 char* strcpy(char* dst_, const char* src_)
 {
     ASSERT(dst_ != NULL && src_ != NULL);
+    
     char* r = dst_;//返回字符串的起始地址
-    while (src_ != NULL) {
+    while (*src_) {
         *dst_++ = *src_++;
     }
     return r;

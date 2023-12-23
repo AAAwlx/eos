@@ -1,8 +1,9 @@
 #include "memory.h"
-#include "global.h"
 #include "../lib/stdint.h"
 #include "../lib/string.h"
 #include "debug.h"
+#include "global.h"
+#include "print.h"
 #define PG_SIZE 4096
 #define MEM_BITMAP_BASE 0xc009a000
 #define PDE_IDX(addr) ((addr & 0xffc00000) >> 22)
@@ -43,37 +44,45 @@ void* vaddr_get(enum pool_flags pf, uint32_t pg_cnt) {
 
     return (void*)vaddr_start;
 }
-void* palloc(struct mem_pool *pool )//分配物理页，每次只分配一页
+void* palloc(struct mem_pool* pool)  // 分配物理页，每次只分配一页
 {
     uint32_t phy_start = 0;
     int bit_idx_start = (&kernel_vaddr.vaddr_bitmap, 1);
-    if (bit_idx_start==-1)
-    {
+    if (bit_idx_start == -1) {
         return NULL;
     }
     bitmap_set(&pool->pool_bitmap, bit_idx_start, 1);
     phy_start = pool->phy_addr_start + bit_idx_start * PG_SIZE;
+    put_str("palloc ");
+    put_int(phy_start);
     return (void*)phy_start;
 }
-static void page_table_add(void* _vaddr, void* _page_phyaddr)//将物理地址写入虚拟地址对应的页表内
+static void page_table_add(
+    void* _vaddr,
+    void* _page_phyaddr)  // 将物理地址写入虚拟地址对应的页表内
 {
     uint32_t vaddr = (uint32_t)_vaddr, page_phyaddr = (uint32_t)_page_phyaddr;
-    uint32_t *pte = pte_ptr(_vaddr);
-    uint32_t *pde = pde_ptr(_vaddr);
-    if (*pde&0x00000001)//比较看当前页目录项（该页表）是否存在
+    uint32_t* pte = pte_ptr(_vaddr);
+    uint32_t* pde = pde_ptr(_vaddr);
+    if (*pde & 0x00000001)  // 比较看当前页目录项（该页表）是否存在
     {
         ASSERT(!(*pte & 0x00000001));
-        //页表项即页是否存在
-        if((*pte & 0x00000001))
-        {
+        if (!(*pte & 0x00000001)) {
+            // 只要是创建页表,pte 就应该不存在,多判断一下放心
+            *pte = (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);
+            put_int(*pte);
+        } else {  // 目前应该不会执行到这,因为上面的 ASSERT 会先执行
             PANIC("pte repeat");
+            // *pte = (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);  //
         }
-        *pte =
-                (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);
-    }else{//若页表项不存在
+    } else {  // 若页表项不存在
         uint32_t pde_phyaddr = (uint32_t)palloc(&kernel_pool);
+        put_str("pde_phyaddr");
+        put_int(pde_phyaddr);
+        put_str("\n");
         *pde = (pde_phyaddr | PG_US_U | PG_RW_W | PG_P_1);
-        memset((void*)((int)pte & 0xfffff000), 0, PG_SIZE);//清空这块页表内存，防止脏页导致数据混乱
+        memset((void*)((int)pte & 0xfffff000), 0,
+               PG_SIZE);  // 清空这块页表内存，防止脏页导致数据混乱
         ASSERT(!(*pte & 0x00000001));
         *pte = (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);  // US=1,RW=1,P=1
     }
@@ -87,11 +96,10 @@ void* malloc_page(enum pool_flags pf, uint32_t pg_cnt) {
     if (vaddr_start == NULL) {
         return NULL;
     }
-    struct mem_pool *pool = (pf & PF_KERNEL) ? &kernel_pool : &user_pool;
-    while (pg_cnt--) {
+    struct mem_pool* pool = (pf & PF_KERNEL) ? &kernel_pool : &user_pool;
+    while (pg_cnt-- > 0) {
         uint32_t _page_phyaddr = palloc(pool);
-        if (_page_phyaddr==NULL)
-        {
+        if (_page_phyaddr == NULL) {
             return NULL;
         }
         page_table_add(vaddr, _page_phyaddr);
@@ -100,10 +108,12 @@ void* malloc_page(enum pool_flags pf, uint32_t pg_cnt) {
     return vaddr_start;
 }
 void* get_kernel_pages(uint32_t pg_cnt) {
+    put_str("get_kernel_pages\n");
     void* vaddr = malloc_page(PF_KERNEL, pg_cnt);
     if (vaddr != NULL) {  // 若分配的地址不为空,将页框清0后返回
         memset(vaddr, 0, pg_cnt * PG_SIZE);
     }
+    put_str("get_kernel_pages_down\n");
     return vaddr;
 }
 void mem_pool_init(uint32_t mem_bytes_total) {

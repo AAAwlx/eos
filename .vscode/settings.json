@@ -9,6 +9,10 @@
         "sysnc.h": "c",
         "debug.h": "c",
         "printf.h": "c",
-        "print.h": "c"
+        "print.h": "c",
+        "stdint.h": "c",
+        "algorithm": "c",
+        "format": "c",
+        "memory.h": "c"
     }
 }
