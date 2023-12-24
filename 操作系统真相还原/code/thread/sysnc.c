@@ -12,24 +12,24 @@ void lock_init(struct lock* plock)//初始化锁
 {
     plock->holder = NULL;
     plock->holder_repeat_nr = 0;
-    sema_init(&plock->semaphore, 0);
+    sema_init(&plock->semaphore, 1);
 }
 void sema_down(struct semaphore* psema)//减少信号量
 {
     enum intr_status intr = intr_disable();
     while (psema->value==0)
     {
-        ASSERT(elem_find(&psema->waiters, &(running_thread()->general_tag)));
+        ASSERT(!elem_find(&psema->waiters, &(running_thread()->general_tag)));
         
         if (elem_find(&psema->waiters, &(running_thread()->general_tag)))
         {
             PANIC("sema_down: thread blocked has been in waiters_list\n");
         }
-        thread_lock(TASK_BLOCKED);
-        list_append(&psema->waiters, &(running_thread()->general_tag));
+        
+        list_append(&psema->waiters, &(running_thread()->general_tag));thread_lock(TASK_BLOCKED);
     }
-    ASSERT(psema->value == 0);
     psema->value--;
+    ASSERT(psema->value == 0);
     intr_set_status(intr);
 }
 void sema_up(struct semaphore* psema)//增加信号量
@@ -45,14 +45,15 @@ void sema_up(struct semaphore* psema)//增加信号量
 
     }
     psema->value++;
+    ASSERT(psema->value == 1);	 
     intr_set_status(intr);
 }
 void lock_acquire(struct lock* plock)//加锁
 {
     if (plock->holder!=running_thread())
     {
-        plock->holder = running_thread();
         sema_down(&plock->semaphore);
+        plock->holder = running_thread();
         ASSERT(plock->holder_repeat_nr == 0);
         plock->holder_repeat_nr = 1;
     } else {//如果是锁的持有者直接加一

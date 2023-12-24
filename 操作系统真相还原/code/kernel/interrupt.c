@@ -42,8 +42,8 @@ static void pic_init(void) {
   outb(PIC_S_DATA, 0x01);  // ICW4: 8086模式, 正常EOI
 
   /*测试键盘,只打开键盘中断,其他全部关闭*/
-  outb(PIC_M_DATA, 0xf8);
-  outb(PIC_S_DATA, 0xbf);
+  outb (PIC_M_DATA, 0xfc);
+   outb (PIC_S_DATA, 0xff);
 
   put_str("   pic_init done\n");
 }
@@ -94,12 +94,6 @@ static void general_intr_handler(uint8_t vec_nr) {
 
   put_str("\n!!!!!   excetion message end    !!!!!\n");
   while (1);  
-    /*if (vec_nr == 0x27 || vec_nr == 0x2f) {	// 0x2f是从片8259A上的最后一个irq引脚，保留
-      return;		//IRQ7和IRQ15会产生伪中断(spurious interrupt),无须处理。
-   }
-   put_str("int vector: 0x");
-   put_int(vec_nr);
-   put_char('\n');*/
     // 能进入中断处理程序就表示已经处在关中断情况下
        // 不会出现调度进程的情况。故下面的死循环不会再被中断
 }
@@ -153,7 +147,7 @@ void idt_init() {
 /*开启中断并返回中断前的状态*/
 enum intr_status intr_enable() {
   enum intr_status old_status;
-  put_str("intr_enable\n");
+  //put_str("intr_enable\n");
   if (INTR_ON == intr_get_status()) {
     old_status = INTR_ON;
     return old_status;

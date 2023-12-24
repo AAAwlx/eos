@@ -5,6 +5,7 @@
 #include "print.h"
 #include "sysnc.h"
 #include"ioqueue.h"
+struct ioqueue kbd_buf;
 #define KBD_BUF_PORT 0x60  // 键盘的端口
 #define char_invisible 0
 #define ctrl_l_char char_invisible
