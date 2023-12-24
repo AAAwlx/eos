@@ -54,14 +54,28 @@ int bitmap_scan(struct bitmap* btmp, uint32_t cnt)
     }
     return bit_start;
 }
-void bitmap_set(struct bitmap* btmp, uint32_t bit_idx, int8_t value)//将位图的第bit_idx位设置为value
+void bitmap_set(struct bitmap* btmp, uint32_t bit_idx, int8_t value) {
+   ASSERT((value == 0) || (value == 1));
+   uint32_t byte_idx = bit_idx / 8;    // 向下取整用于索引数组下标
+   uint32_t bit_odd  = bit_idx % 8;    // 取余用于索引数组内的位
+
+/* 一般都会用个0x1这样的数对字节中的位操作,
+ * 将1任意移动后再取反,或者先取反再移位,可用来对位置0操作。*/
+   if (value) {		      // 如果value为1
+      btmp->bits[byte_idx] |= (BITMAP_MASK << bit_odd);
+   } else {		      // 若为0
+      btmp->bits[byte_idx] &= ~(BITMAP_MASK << bit_odd);
+   }
+}
+/*void bitmap_set(struct bitmap* btmp, uint32_t bit_idx, int8_t value)//将位图的第bit_idx位设置为value
 {
+    ASSERT((value == 0) || (value == 1));
     uint32_t i_byte = bit_idx / 8;
     uint32_t i_bit = bit_idx % 8;
     if (value)//1
     {
-        btmp->bits[i_byte] |= (BITMAP_MASK << bit_idx);//将
+        btmp->bits[i_byte] |= (BITMAP_MASK << i_bit);//将
     } else {  // 0
-        btmp->bits[i_byte] &= ~(BITMAP_MASK << bit_idx);
+        btmp->bits[i_byte] &= ~(BITMAP_MASK << i_bit);
     }
-}
+}*/

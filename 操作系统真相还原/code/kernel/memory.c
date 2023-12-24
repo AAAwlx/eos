@@ -17,8 +17,7 @@ struct mem_pool {
     uint32_t pool_size;
 };
 uint32_t* pte_ptr(uint32_t vaddr) {
-    uint32_t* pte = (uint32_t*)(0xffc00000 + ((vaddr & 0xffc00000) >> 10) +
-                                PTE_IDX(vaddr) * 4);
+    uint32_t* pte = (uint32_t*)(0xffc00000 + ((vaddr & 0xffc00000) >> 10) +PTE_IDX(vaddr) * 4);
     return pte;
 }
 uint32_t* pde_ptr(uint32_t vaddr) {
@@ -29,15 +28,12 @@ void* vaddr_get(enum pool_flags pf, uint32_t pg_cnt) {
     int vaddr_start = 0, bit_idx_start = -1;
     uint32_t cnt = 0;
     if (pf == PF_KERNEL) {  // 如果是为内核分配内存
-        bit_idx_start =
-            bitmap_scan(&kernel_vaddr.vaddr_bitmap, pg_cnt);  // 寻找连续的位图
-        while (cnt < pg_cnt) {
-            cnt++;
-            bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_idx_start + cnt,
-                       1);  // 找到后将已分配的位图位置都标记为1
-        }
+        bit_idx_start = bitmap_scan(&kernel_vaddr.vaddr_bitmap, pg_cnt);  // 寻找连续的位图
         if (bit_idx_start == -1) {
             return NULL;
+        }
+        while (cnt < pg_cnt) {
+            bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_idx_start + cnt++,1);  // 找到后将已分配的位图位置都标记为1
         }
         vaddr_start = kernel_vaddr.vaddr_start + bit_idx_start * PG_SIZE;
     }
@@ -46,43 +42,40 @@ void* vaddr_get(enum pool_flags pf, uint32_t pg_cnt) {
 }
 void* palloc(struct mem_pool* pool)  // 分配物理页，每次只分配一页
 {
-    uint32_t phy_start = 0;
-    int bit_idx_start = (&kernel_vaddr.vaddr_bitmap, 1);
+    int bit_idx_start = bitmap_scan(&pool->pool_bitmap, 1);
     if (bit_idx_start == -1) {
         return NULL;
     }
     bitmap_set(&pool->pool_bitmap, bit_idx_start, 1);
-    phy_start = pool->phy_addr_start + bit_idx_start * PG_SIZE;
+    uint32_t phy_start = ((bit_idx_start * PG_SIZE) + pool->phy_addr_start);
     put_str("palloc ");
     put_int(phy_start);
     return (void*)phy_start;
 }
-static void page_table_add(
-    void* _vaddr,
-    void* _page_phyaddr)  // 将物理地址写入虚拟地址对应的页表内
-{
+static void page_table_add(void* _vaddr, void* _page_phyaddr) {
     uint32_t vaddr = (uint32_t)_vaddr, page_phyaddr = (uint32_t)_page_phyaddr;
-    uint32_t* pte = pte_ptr(_vaddr);
-    uint32_t* pde = pde_ptr(_vaddr);
-    if (*pde & 0x00000001)  // 比较看当前页目录项（该页表）是否存在
-    {
+    uint32_t* pde = pde_ptr(vaddr);
+    uint32_t* pte = pte_ptr(vaddr);
+    if (*pde &
+        0x00000001) {  // 页目录项和页表项的第0位为P,此处判断目录项是否存在
         ASSERT(!(*pte & 0x00000001));
-        if (!(*pte & 0x00000001)) {
-            // 只要是创建页表,pte 就应该不存在,多判断一下放心
-            *pte = (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);
-            put_int(*pte);
-        } else {  // 目前应该不会执行到这,因为上面的 ASSERT 会先执行
+
+        if (!(*pte &
+              0x00000001)) {  // 只要是创建页表,pte就应该不存在,多判断一下放心
+            *pte =
+                (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);  // US=1,RW=1,P=1
+        } else {  // 应该不会执行到这，因为上面的ASSERT会先执行。
             PANIC("pte repeat");
-            // *pte = (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);  //
+            *pte =
+                (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);  // US=1,RW=1,P=1
         }
-    } else {  // 若页表项不存在
+    } else {  // 页目录项不存在,所以要先创建页目录再创建页表项.
+        /* 页表中用到的页框一律从内核空间分配 */
         uint32_t pde_phyaddr = (uint32_t)palloc(&kernel_pool);
-        put_str("pde_phyaddr");
-        put_int(pde_phyaddr);
-        put_str("\n");
+
         *pde = (pde_phyaddr | PG_US_U | PG_RW_W | PG_P_1);
-        memset((void*)((int)pte & 0xfffff000), 0,
-               PG_SIZE);  // 清空这块页表内存，防止脏页导致数据混乱
+        memset((void*)((int)pte & 0xfffff000), 0, PG_SIZE);
+
         ASSERT(!(*pte & 0x00000001));
         *pte = (page_phyaddr | PG_US_U | PG_RW_W | PG_P_1);  // US=1,RW=1,P=1
     }

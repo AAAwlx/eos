@@ -156,13 +156,10 @@ enum intr_status intr_enable() {
   put_str("intr_enable\n");
   if (INTR_ON == intr_get_status()) {
     old_status = INTR_ON;
-    put_str("INTR_ON\n");
     return old_status;
   } else {  // 处于关闭状态
     old_status = INTR_OFF;
-    put_str("INTR_OFF\n");
     asm volatile("sti");  // 开启
-    put_str("INTR_OFF_DOWN\n");
     return old_status;
   }
 }
