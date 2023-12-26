@@ -154,12 +154,16 @@ static void intr_keyboard_handler(void) {
         char cur_char = keymap[index][shift];
         if (cur_char)  // 如果不是0
         {
-             if ((ctrl_down_last && cur_char == 'l')||(ctrl_down_last && cur_char == 'u')) {
+            
+             /*put_char(cur_char);
+            return;*/
+        
+            if ((ctrl_down_last && cur_char == 'l')||(ctrl_down_last && cur_char == 'u')) {
 	            cur_char -= 'a';
 	        }
-            if (!ioq_full(buf))
+            if (!ioq_full(&kbd_buf))
             {
-                ioq_putchar(buf, cur_char);
+                ioq_putchar(&kbd_buf, cur_char);
             }
             return;
         } else {  // 如果是0,则是控制键盘
@@ -179,8 +183,16 @@ static void intr_keyboard_handler(void) {
         put_str("unknown key\n");
     }
 }
+static void intr_keyboard_handler1(void) {
+   put_char('k');
+/* 必须要读取输出缓冲区寄存器,否则8042不再继续响应键盘中断 */
+   inb(KBD_BUF_PORT);
+   return;
+}
+
 void keyboard_init(void) {
     put_str("keyboard init start\n");
+    ioqueue_init(&kbd_buf);
     register_hsndler(0x21, intr_keyboard_handler);
     put_str("keyboard init down\n");
 }

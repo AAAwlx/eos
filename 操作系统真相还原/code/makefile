@@ -10,7 +10,7 @@ LK=lib/kernel
 
 # BOCHS相关参数
 BOCHS_PATH=/usr/local/share/bochs/bin/bochs
-BOCHS_GDB_PATH=/usr/local/share/bochs/bin/bochs
+BOCHS_GDB_PATH=/home/ylx/gdb-bochs/gdb-bochs/bin/bochs
 BOCHS_PORt="target remote 127.0.0.1:1234"
 BOCHS_GDB_FLAG='gdbstub:enabled=1,port=1234,text_base=0,data_base=0,bss_base=0'
 

@@ -68,7 +68,6 @@ void put_char_color(char c, real_color_t back, real_color_t fore) {
     video_memory[cursor_y * 80 + cursor_x] = c | attribute;
     cursor_x++;
   }
-
   // 每 80 个字符一行，满80就必须换行了
   if (cursor_x >= 80) {
     cursor_x = 0;

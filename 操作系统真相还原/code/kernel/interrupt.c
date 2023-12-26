@@ -41,10 +41,9 @@ static void pic_init(void) {
   outb(PIC_S_DATA, 0x02);  // ICW3: 设置从片连接到主片的IR2引脚
   outb(PIC_S_DATA, 0x01);  // ICW4: 8086模式, 正常EOI
 
-  /*测试键盘,只打开键盘中断,其他全部关闭*/
-  outb (PIC_M_DATA, 0xfc);
+  /*键盘和时钟中断*/
+   outb (PIC_M_DATA, 0xfc);
    outb (PIC_S_DATA, 0xff);
-
   put_str("   pic_init done\n");
 }
 
@@ -173,7 +172,8 @@ enum intr_status intr_disable() {
 
 /*中断处理程序的注册*/
 void register_hsndler(uint8_t vector_no, intr_handler function) {
-  idt_table[vector_no] = function;
+    put_int(vector_no);
+    idt_table[vector_no] = function;
 }
 
 /*设置中断状态*/

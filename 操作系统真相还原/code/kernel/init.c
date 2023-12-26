@@ -7,6 +7,7 @@ void init_all()
     init_time();
     mem_init();
     thread_init(); // 初始化线程相关结构
-    console_init(); 
     keyboard_init();
+    console_init(); 
+    
 }

@@ -13,11 +13,12 @@ inline void outw(uint16_t port,const void* addr,uint32_t size){
     :"d"(port));
 }
 //从端口读出单个数据
- inline uint8_t inb(uint16_t port){
-    uint8_t value;
-    asm volatile("inb %w1,%b0" ::"a"(value), "Nd"(port));
-    return value;
+ inline uint8_t inb(uint16_t port) {
+  uint8_t ret;
+  asm volatile("inb %1,%0" : "=a"(ret) : "dN"(port));
+  return ret;
 }
+
 //从端口读出连续的一串数据
  inline void inw(uint16_t port,const void* addr,uint32_t size){
     asm volatile("cld;rep insw " 

@@ -25,7 +25,6 @@ void console_put_str(char* str) {
    put_str(str); 
    console_release();
 }
-
 /* 终端中输出字符 */
 void console_put_char(uint8_t char_asci) {
    console_acquire(); 
