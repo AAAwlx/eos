@@ -43,7 +43,7 @@ struct thread_stack
     uint32_t edi;
     uint32_t esi;
     //以下是线程第一次被调度上cpu时需要初始化的信息
-    void (*eip)(thread_func* func, void* func_arg);//函数指针，指向kernel_thread函数，再由kernel_thread函数调用线程执行的目的函数
+    void (*eip)(thread_func* func, void* func_arg);//函数指针，第一次被调度时指向kernel_thread函数，再由kernel_thread函数调用线程执行的目的函数
     void (*unused_retaddr);//用来占位，充当调用kernel_thread函数的返回地址
     thread_func* function;   // 由Kernel_thread所调用的函数名
     void* func_arg;    // 由Kernel_thread所调用的函数所需的参数
