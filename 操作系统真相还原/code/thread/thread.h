@@ -2,6 +2,7 @@
 #define __THREAD_THREAD_H
 #include "../lib/stdint.h"
 #include"list.h"
+#include"memory.h"
 typedef void thread_func(void*);
 enum task_stat {
     TASK_RUNNING,//运行
@@ -67,7 +68,8 @@ struct task_pcb
    struct list_node all_list_tag;
 
    uint32_t* pgdir;              // 进程自己页表的虚拟地址
-   uint32_t stack_magic;	 // 用这串数字做栈的边界标记,用于检测栈的溢出
+   struct virtual_addr userprog_vaddar;
+   uint32_t stack_magic;  // 用这串数字做栈的边界标记,用于检测栈的溢出
 };
 void thread_create(struct task_pcb* pthread, thread_func function, void* func_arg);
 void init_thread(struct task_pcb* pthread, char* name, int prio);

@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "global.h"
 #include "print.h"
+#include"sysnc.h"
 #define PG_SIZE 4096
 #define MEM_BITMAP_BASE 0xc009a000
 #define PDE_IDX(addr) ((addr & 0xffc00000) >> 22)
@@ -15,6 +16,7 @@ struct mem_pool {
     struct bitmap pool_bitmap;
     uint32_t phy_addr_start;
     uint32_t pool_size;
+    struct lock lock;
 };
 uint32_t* pte_ptr(uint32_t vaddr) {
     uint32_t* pte = (uint32_t*)(0xffc00000 + ((vaddr & 0xffc00000) >> 10) +PTE_IDX(vaddr) * 4);
@@ -36,8 +38,18 @@ void* vaddr_get(enum pool_flags pf, uint32_t pg_cnt) {
             bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_idx_start + cnt++,1);  // 找到后将已分配的位图位置都标记为1
         }
         vaddr_start = kernel_vaddr.vaddr_start + bit_idx_start * PG_SIZE;
+    }else
+    {
+        struct task_pcb* cur = running_thread();
+        bit_idx_start = bitmap_scan(&cur->userprog_vaddar.vaddr_bitmap, pg_cnt);  // 寻找连续的位图
+        if (bit_idx_start == -1) {
+            return NULL;
+        }
+        while (cnt < pg_cnt) {
+            bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_idx_start + cnt++,1);  // 找到后将已分配的位图位置都标记为1
+        }
+        ASSERT((uint32_t)vaddr_start < (0xc0000000 - PG_SIZE));
     }
-
     return (void*)vaddr_start;
 }
 void* palloc(struct mem_pool* pool)  // 分配物理页，每次只分配一页
@@ -102,12 +114,58 @@ void* malloc_page(enum pool_flags pf, uint32_t pg_cnt) {
 }
 void* get_kernel_pages(uint32_t pg_cnt) {
     put_str("get_kernel_pages\n");
+    lock_acquire(&kernel_pool.lock);
     void* vaddr = malloc_page(PF_KERNEL, pg_cnt);
     if (vaddr != NULL) {  // 若分配的地址不为空,将页框清0后返回
         memset(vaddr, 0, pg_cnt * PG_SIZE);
     }
+    lock_release(&kernel_pool.lock);
     put_str("get_kernel_pages_down\n");
     return vaddr;
+}
+void* get_user_pages(uint32_t pg_cnt) {
+    put_str("get_user_pages\n");
+    lock_acquire(&user_pool.lock);
+    void* vaddr = malloc_page(PF_USER, pg_cnt);
+    if (vaddr != NULL) {  // 若分配的地址不为空,将页框清0后返回
+        memset(vaddr, 0, pg_cnt * PG_SIZE);
+    }
+    lock_release(&user_pool.lock);
+    put_str("get_user_pages_down\n");
+    return vaddr;
+}
+//一页一页的分配内存
+void* get_a_page(enum pool_flags pf, uint32_t vaddr)
+{
+    struct mem_pool* pool = pf & PF_KERNEL ? &kernel_pool : &user_pool;
+    lock_acquire(&pool->lock);
+    struct task_pcb* cur = running_thread();
+    int bit_idx = -1;
+    if (cur->pgdir != NULL && pf == PF_USER) {
+        bit_idx = (vaddr - cur->userprog_vaddar.vaddr_start) / PG_SIZE;
+        ASSERT(bit_idx > 0);
+        bitmap_set(&cur->userprog_vaddar.vaddr_bitmap, bit_idx, 1);
+    }else if (cur->pgdir == NULL && pf == PF_KERNEL) {
+        bit_idx = (vaddr - cur->userprog_vaddar.vaddr_start) / PG_SIZE;
+        ASSERT(bit_idx > 0);
+        bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_idx, 1);
+    }
+    void *page_phyaddr = palloc(pool);
+    if (page_phyaddr==NULL) {
+        return NULL;
+    }
+    page_table_add((void*)vaddr, page_phyaddr);
+    lock_release(&pool->lock);
+    return (void*)vaddr;
+}
+uint32_t addr_v2p(uint32_t vaddr)
+{
+    uint32_t* pte = pte_ptr(vaddr);
+    return ((*pte & 0xfffff000) + (vaddr & 0x00000fff));
+}
+void* get_a_page(enum pool_flags pf, uint32_t vaddr)
+{
+
 }
 void mem_pool_init(uint32_t mem_bytes_total) {
     put_str(" mem_pool_init start\n");
@@ -151,6 +209,8 @@ void mem_pool_init(uint32_t mem_bytes_total) {
 }
 void mem_init() {
     put_str("mem_init start\n");
+    lock_init(&kernel_pool.lock);
+    lock_init(&user_pool.lock);
     uint32_t mem_bytes_total = (*(
         uint32_t*)(0xb00));  // 将先前loade.s中统计好的内存总量读出并交给变量mem_bytes_total
     mem_pool_init(mem_bytes_total);  // 初始化内存池
