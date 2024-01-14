@@ -46,9 +46,10 @@ void* vaddr_get(enum pool_flags pf, uint32_t pg_cnt) {
             return NULL;
         }
         while (cnt < pg_cnt) {
-            bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_idx_start + cnt++,1);  // 找到后将已分配的位图位置都标记为1
+            bitmap_set(&cur->userprog_vaddar.vaddr_bitmap, bit_idx_start + cnt++,1);  // 找到后将已分配的位图位置都标记为1
         }
-        ASSERT((uint32_t)vaddr_start < (0xc0000000 - PG_SIZE));
+        vaddr_start =cur->userprog_vaddar.vaddr_start + bit_idx_start * PG_SIZE;
+        ASSERT((uint32_t)vaddr_start < (0xc0000000 - PG_SIZE));//检查虚拟地址分配是否在低3GB内，高1GB为内核代码
     }
     return (void*)vaddr_start;
 }
@@ -162,10 +163,6 @@ uint32_t addr_v2p(uint32_t vaddr)
 {
     uint32_t* pte = pte_ptr(vaddr);
     return ((*pte & 0xfffff000) + (vaddr & 0x00000fff));
-}
-void* get_a_page(enum pool_flags pf, uint32_t vaddr)
-{
-
 }
 void mem_pool_init(uint32_t mem_bytes_total) {
     put_str(" mem_pool_init start\n");

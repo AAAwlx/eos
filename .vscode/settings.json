@@ -13,6 +13,8 @@
         "stdint.h": "c",
         "algorithm": "c",
         "format": "c",
-        "memory.h": "c"
+        "memory.h": "c",
+        "process.h": "c",
+        "thread.h": "c"
     }
 }
