@@ -3,7 +3,8 @@
 #include "../lib/string.h"
 #include "debug.h"
 #include "interrupt.h"
-#include "print.h"
+#include "print.h"\
+#include"process.h"
 struct list general_list;             // 就绪任务队列
 struct list all_list;                 // 全部任务队列
 struct task_pcb* main_thread;         // 如果是主线程
@@ -111,6 +112,7 @@ void schedule() {
     struct task_pcb* next =
         elem2entry(struct task_pcb, general_tag, thread_tag);
     next->status = TASK_RUNNING;
+    process_activate(cur);
     switch_to(cur, next);
 }
 // 阻塞线程自己
