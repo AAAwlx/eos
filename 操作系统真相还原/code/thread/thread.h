@@ -4,13 +4,14 @@
 #include"list.h"
 #include"memory.h"
 typedef void thread_func(void*);
+typedef int16_t pid_t;
 enum task_stat {
-    TASK_RUNNING,//运行
-    TASK_READY,//就绪
-    TASK_BLOCKED,//锁
-    TASK_WAITING,//等待
-    TASK_HANGING,//挂起
-    TASK_DIED//死亡
+    TASK_RUNNING,  // 运行
+    TASK_READY,    // 就绪
+    TASK_BLOCKED,  // 锁
+    TASK_WAITING,  // 等待
+    TASK_HANGING,  // 挂起
+    TASK_DIED      // 死亡
 };
 //中断时保存寄存器上下文
 struct intr_stack
@@ -52,6 +53,7 @@ struct thread_stack
 struct task_pcb
 {
     uint32_t* self_kstack;	 // 各内核线程都用自己的内核栈
+    pid_t pid;
    enum task_stat status;
    char name[16];
    uint8_t priority;

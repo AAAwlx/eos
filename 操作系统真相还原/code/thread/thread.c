@@ -3,13 +3,15 @@
 #include "../lib/string.h"
 #include "debug.h"
 #include "interrupt.h"
-#include "print.h"\
+#include "print.h"
+#include "sysnc.h"
 #include"process.h"
 struct list general_list;             // 就绪任务队列
 struct list all_list;                 // 全部任务队列
 struct task_pcb* main_thread;         // 如果是主线程
 static struct list_node* thread_tag;  // 用于临时保存队列中的线程结点
 static struct list_node* general_tag;
+struct lock lock_pid;
 // 获取当前函数pcb块的起始地址
 extern void switch_to(struct task_pcb* cur, struct task_pcb* next);
 struct task_pcb* running_thread() {
@@ -20,9 +22,17 @@ struct task_pcb* running_thread() {
         task_pcb*)(esp &
                    0xfffff000);  // 将虚拟地址的最后10位页内偏移去掉就能的到pcb页开始的地址。整页分配
 }
-
+static pid_t allocate_pid (void)
+{
+    static pid_t next_pid = 0;//设置静态变量
+    lock_acquire(&lock_pid);
+    next_pid++;
+    lock_release(&lock_pid);
+    return next_pid;
+}
 void init_thread(struct task_pcb* pthread, char* name, int prio) {
     memset(pthread, 0, sizeof(*pthread));
+    pthread->pid = allocate_pid();
     strcpy(pthread->name, name);
 
     if (pthread == main_thread) {
@@ -150,6 +160,7 @@ void thread_init(void) {
     put_str("thread_init start\n");
     list_init(&general_list);
     list_init(&all_list);
+    lock_init(&lock_pid);
     /* 将当前main函数创建为线程 */
     main_thread_init();
     put_str("thread_init done\n");

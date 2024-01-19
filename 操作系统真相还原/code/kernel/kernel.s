@@ -87,3 +87,23 @@ VECTOR 0x00, ZERO
   VECTOR 0x2d, ZERO    ;fpu 浮点单元异常
   VECTOR 0x2e, ZERO    ;硬盘
   VECTOR 0x2f, ZERO    ;保留
+[bits 32]
+extern syscall_table
+section .text
+global syscall_handler
+push 0;
+push ds
+push es 
+push fs 
+push gs 
+pushad
+;压入中断调用号
+push 0x80 
+;压入系统调用要用到的参数
+push edx
+push ecx 
+push ebx
+call [syscall_table+eax*4];
+add esp,12;跳过系统调用的参数
+mov [esp+8*4],eax;将栈顶指针推到中断时保存eax的位置,并将返回值由eax放入栈中
+jmp intr_exit;进入中断返回位置，恢复上下文

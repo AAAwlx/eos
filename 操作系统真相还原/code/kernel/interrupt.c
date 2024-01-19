@@ -16,7 +16,7 @@ struct gate_desc {
 static struct gate_desc idt[IDT_DESC_CNT];
 
 // 系统调用函数
-//extern uint32_t syscall_handler(void);
+extern uint32_t syscall_handler(void);
 
 // 声明引用定义在kernel.S中的中断处理函数入口数组
 extern intr_handler intr_entry_table[IDT_DESC_CNT];
@@ -62,12 +62,12 @@ static void make_idt_desc(struct gate_desc* p_gdesc, uint8_t attr,
 static void idt_desc_init(void) {
   int i;
   int lastindex = IDT_DESC_CNT - 1;
-  for (i = 0; i < IDT_DESC_CNT; i++) {
+  for (i = 0; i < lastindex; i++) {
     make_idt_desc(&idt[i], IDT_DESC_ATTR_DPL0, intr_entry_table[i]);
   }
   // 单独注册系统调用处理函数
   // 因为该中断是由用户触发，所以中断门dpl要为3,不然会触发GP异常
-  //make_idt_desc(&idt[lastindex], IDT_DESC_ATTR_DPL3, syscall_handler);
+  make_idt_desc(&idt[lastindex], IDT_DESC_ATTR_DPL3, syscall_handler);
 
   put_str("   idt_desc_init done\n");
 }
