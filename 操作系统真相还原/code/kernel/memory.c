@@ -5,6 +5,7 @@
 #include "global.h"
 #include "print.h"
 #include"sysnc.h"
+#include"interrupt.h"
 #define PG_SIZE 4096
 #define MEM_BITMAP_BASE 0xc009a000
 #define PDE_IDX(addr) ((addr & 0xffc00000) >> 22)
@@ -18,6 +19,12 @@ struct mem_pool {
     uint32_t pool_size;
     struct lock lock;
 };
+struct arean{
+    struct mem_block_desc* desc;
+    uint32_t cnt;
+    bool large;//若为ture则表示页框数量，若为false则表示空闲内存块的数量
+};
+struct mem_block_desc* k_block_descs[DESC_CNT];//内核态的描述符数组
 uint32_t* pte_ptr(uint32_t vaddr) {
     uint32_t* pte = (uint32_t*)(0xffc00000 + ((vaddr & 0xffc00000) >> 10) +PTE_IDX(vaddr) * 4);
     return pte;
@@ -204,6 +211,108 @@ void mem_pool_init(uint32_t mem_bytes_total) {
     bitmap_init(&kernel_vaddr.vaddr_bitmap);
     put_str("mem_pool_init done\n");
 }
+void* block_desc_init(struct mem_block_desc* descs)
+{
+    uint16_t descs_size = 16;
+    for (uint16_t descs_index = 0; descs_index < DESC_CNT; descs_index++)
+    {
+        descs[descs_index].block_per_arena =
+            (PG_SIZE - sizeof(struct arean)) / descs_size;
+        descs[descs_index].block_size = descs_size;
+        list_init(&descs[descs_index].freelist);
+        descs_size *= 2;
+    }
+
+}
+//将获取内存块的地址
+struct mem_block* arena2block(struct arean *a,uint32_t index)
+{
+    return (struct mem_block*)((uint32_t)a + sizeof(struct arean) +
+                               index*a->desc->block_size);
+}
+struct arean* block2arena(struct mem_block *b)
+{
+    return (struct arean*)((uint32_t)b & 0xfffff000);
+}
+void * sys_malloc(uint32_t size)
+{
+    enum pool_flags pf;//标志
+    struct mem_pool* pool;//内存池大小
+    struct task_pcb *pthread= running_thread();
+    struct mem_block_desc* descs;//描述符数组
+
+    uint32_t poolsize;
+    if (pthread->pgdir == NULL) {
+        pf = PF_KERNEL;//
+        pool = &kernel_pool;
+        poolsize = kernel_pool.pool_size;
+        descs = k_block_descs;
+    }else
+    {
+        pf = PF_USER;//
+        pool = &user_pool;
+        poolsize = user_pool.pool_size;
+        descs = pthread->u_block_descs;
+    }
+    if (size<0||size>poolsize)//如果大于内存池或小于0
+    {
+        return NULL;
+    }
+    lock_acquire(&pool->lock);
+    struct arean* a;
+    struct mem_block* b;
+    if (size > 1024) {  // 如果要分配的内存大于一个页框
+        uint32_t page_cnt = DIV_ROUND_UP(size + sizeof(struct arena), PG_SIZE);    // 向上取整需要的页框数
+        a = malloc_page(pf,page_cnt);
+        if (a==NULL) {
+            lock_release(&pool->lock);
+            return NULL;
+        }else
+        {
+            a->cnt = page_cnt;
+            a->large = true;
+            a->desc = NULL;
+            memset(a, 0, page_cnt * PG_SIZE);
+            lock_release(&pool->lock);
+            return (void*)(a + 1);
+        }
+    } else {
+        uint8_t i;
+        for (i= 0; i < DESC_CNT; i++) {
+            if (descs[i].block_size >size)
+            {
+                break;
+            }
+        }
+        if (list_empty(descs[i].freelist ))
+        {
+            a = malloc_page(pf,1);
+            if (a==NULL) {
+                lock_release(&pool->lock);
+                return NULL;
+            }else
+            {
+                a->cnt = (PG_SIZE-sizeof(struct arean))/descs[i].block_per_arena;
+                a->large = false;
+                a->desc = &descs[i];
+                memset(a, 0, 1);
+                enum intr_status old = intr_disable();
+                for (uint32_t j = 0; j < a->desc->block_per_arena; j++) {
+                    b = arena2block(a, j);
+                    ASSERT(!elem_find(a->desc->freelist,b->node))
+                    list_append(&a->desc->freelist, b->node);
+                }
+                intr_set_status(old);
+            }
+        }
+        b = elem2entry(struct mem_block, node, list_pop(&descs[i].freelist));
+        memset(b, 0, descs[i].freelist);
+        a = block2arena(b);
+        a->cnt--;
+        lock_release(&pool->lock);
+        return b;
+    }
+}
 void mem_init() {
     put_str("mem_init start\n");
     lock_init(&kernel_pool.lock);
@@ -211,5 +320,6 @@ void mem_init() {
     uint32_t mem_bytes_total = (*(
         uint32_t*)(0xb00));  // 将先前loade.s中统计好的内存总量读出并交给变量mem_bytes_total
     mem_pool_init(mem_bytes_total);  // 初始化内存池
+    block_desc_init(k_block_descs);
     put_str("mem_init done\n");
 }

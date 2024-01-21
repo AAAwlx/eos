@@ -69,6 +69,7 @@ void process_exe1cute(void* filename, char* name)
 {
     struct task_pcb* pthread = get_kernel_pages(1);
     init_thread(pthread, name, default_prio);
+    block_desc_init(pthread->u_block_descs);
     create_user_vaddr_bitmap(pthread);
     thread_create(pthread, start_process, filename);
     pthread->pgdir = create_page_dir();

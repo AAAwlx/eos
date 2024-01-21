@@ -17,6 +17,7 @@
         "process.h": "c",
         "thread.h": "c",
         "syscall-init.h": "c",
-        "syscall.h": "c"
+        "syscall.h": "c",
+        "list.h": "c"
     }
 }

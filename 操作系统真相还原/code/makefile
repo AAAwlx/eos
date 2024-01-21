@@ -2,12 +2,12 @@ B=boot
 K=kernel
 D=device
 T=thread
-#U=userprog
+U=userprog
 L=lib
 #F=fs
 #S=shell
 LK=lib/kernel
-
+LU=lib/user
 # BOCHS相关参数
 BOCHS_PATH=/usr/local/share/bochs/bin/bochs
 BOCHS_GDB_PATH=/home/ylx/gdb-bochs/gdb-bochs/bin/bochs
@@ -35,12 +35,16 @@ T_OBJS=$T/sysnc.o \
 
 L_OBJS=$L/stdint.o \
 	   $L/string.o 
+	   $L/stdio.o
 
 LK_OBJS=${LK}/bitmap.o \
 		${LK}/list.o \
 		${LK}/io.o \
 		${LK}/print.o
 
+U_OBJS=$U/process.o\
+	  $U/tss.o\
+	  $U/syscall-init.o
 
 
 	
@@ -53,9 +57,10 @@ OBJS=${K_OBJS}   \
 	 ${LK_OBJS}  \
 	 ${LU_OBJS}  \
 	 ${L_OBJS}  \
+	 ${U_OBJS}
 	 
 
-include= -I $K -I $D -I $T -I $L -I ${LK}
+include= -I $K -I $D -I $T -I $L -I ${LK} -I $U -I ${LU}
 
 
 
