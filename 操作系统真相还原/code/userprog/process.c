@@ -2,7 +2,7 @@
 #include"../kernel/memory.h"
 #include"string.h"
 #include"bitmap.h"
-#include"thread.h"
+#include"../thread/thread.h"
 #include"process.h"
 #include"global.h"
 #include"interrupt.h"

@@ -297,7 +297,7 @@ void * sys_malloc(uint32_t size)
                 a->desc = &descs[i];
                 memset(a, 0, 1);
                 enum intr_status old = intr_disable();
-                for (uint32_t j = 0; j < a->desc->block_per_arena; j++) {
+                for (uint32_t j = 0; j < descs[i].block_per_arena; j++) {
                     b = arena2block(a, j);
                     ASSERT(!elem_find(a->desc->freelist,b->node))
                     list_append(&a->desc->freelist, b->node);
@@ -312,6 +312,112 @@ void * sys_malloc(uint32_t size)
         lock_release(&pool->lock);
         return b;
     }
+}
+//回收物理内存页
+void pfree(uint32_t phy_addr)
+{
+    uint32_t bit_idx;
+    if (phy_addr > user_pool.phy_addr_start) {
+        bit_idx = (phy_addr - user_pool.phy_addr_start) / PG_SIZE;
+        bitmap_set(&user_pool.pool_bitmap, bit_idx, 0);
+    } else {
+        bit_idx = (phy_addr - kernel_pool.phy_addr_start) / PG_SIZE;
+        bitmap_set(&kernel_pool.pool_bitmap, bit_idx, 0);
+    }
+}
+//重置tlb表中的页表的存在位
+void pagetable_remove(void *vaddr)
+{
+    uint32_t* p = pte_ptr(vaddr);
+    *p &= ~PG_P_1;
+    asm volatile ("invlpg %0" ::"m"(vaddr) : "memory");
+}
+//虚拟地址的回收
+void vaddr_remove(enum pool_flags pf,void* vaddr,uint32_t pg_cnt)
+{
+    uint32_t bit_index_start;
+    if (pf == PF_KERNEL) {
+        bit_index_start = ((uint32_t)vaddr - kernel_vaddr.vaddr_start)/PG_SIZE;
+        int i = 0;
+        while (i < pg_cnt) {
+            bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_index_start + i++, 0);
+        }
+    }else
+    {
+        struct task_pcb* pthread = running_thread();
+        bit_index_start =
+            ((uint32_t)vaddr - pthread->userprog_vaddar.vaddr_start) / PG_SIZE;
+        int i = 0;
+        while (i < pg_cnt) {
+            bitmap_set(&pthread->userprog_vaddar.vaddr_start, bit_index_start + i++, 0);
+        }
+    }
+}
+void mfree_page(enum pool_flags pf, void* _vaddr, uint32_t pg_cnt)
+{
+    uint32_t pg_phy_addr;
+    uint32_t vaddr = (int32_t)_vaddr, page_cnt = 0;
+    ASSERT(pg_cnt >= 1 && vaddr % PG_SIZE == 0);//判断虚拟地址是否合规
+    pg_phy_addr = addr_v2p(vaddr);
+    ASSERT(pg_phy_addr % PG_SIZE == 0 && pg_phy_addr >= 0x102000);//判断物理地址是否合规
+    if (pg_phy_addr>=user_pool.phy_addr_start)//如果是内核的物理内存
+    {
+        while (page_cnt<pg_cnt)
+        {
+            pg_phy_addr = addr_v2p(vaddr);
+            ASSERT(pg_phy_addr % PG_SIZE == 0 && pg_phy_addr >= user_pool.phy_addr_start);
+            pfree(pg_phy_addr);
+            pagetable_remove(vaddr);
+            vaddr += PG_SIZE;
+            pg_cnt++;
+        }
+        vaddr_remove(pf, _vaddr, pg_cnt);
+    } else {
+        while (page_cnt < pg_cnt) {
+            pg_phy_addr = addr_v2p(vaddr);
+            ASSERT(pg_phy_addr % PG_SIZE == 0 && pg_phy_addr >= kernel_pool.phy_addr_start&&pg_phy_addr<user_pool.phy_addr_start);
+            pfree(pg_phy_addr);
+            pagetable_remove(vaddr);
+            vaddr += PG_SIZE;
+            pg_cnt++;
+        }
+        vaddr_remove(pf, _vaddr, pg_cnt);
+    }
+}
+void* sys_free(void *p)
+{
+    ASSERT(p != NULL);//确保p不是
+    enum pool_flags pf;
+    struct mem_pool* pool;
+    if (running_thread()->pgdir == NULL) {
+        ASSERT((uint32_t)p > KERNEL_V_START);//确保是内核的虚拟内存
+        pf = PF_KERNEL;
+        pool = &kernel_pool;
+    } else {
+        pf = PF_USER;
+        pool = &user_pool;
+    }
+    lock_acquire(&pool->lock);
+    struct mem_block* b = p;
+    struct arean* a = block2arena(b);
+    ASSERT(a->large == true || a->large == false);
+    if (a->large == true && a->desc == NULL) {
+        mfree_page(pf,a,a->cnt);
+    }else
+    {
+        list_append(a->desc->freelist, b->node);
+        if (++a->cnt==a->desc->block_per_arena)//如果当前可用内存块数量与该仓库所含有的内存块总数一样则说明整页内存可以回收
+        {
+            for (uint8_t i = 0; i < a->cnt; i++)
+            {
+                struct mem_block* bi = arena2block(a, i);
+                ASSERT(elem_find(&a->desc->freelist, &bi->node));
+                list_remove(&bi->node);
+            }
+            mfree_page(pf, a, 1);
+        }
+    }
+    lock_release(&pool->lock);
 }
 void mem_init() {
     put_str("mem_init start\n");
