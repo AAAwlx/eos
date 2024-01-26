@@ -26,7 +26,8 @@ K_OBJS=$K/main.o \
 D_OBJS=$D/keyboard.o \
        $D/timer.o  \
 	   $D/ioqueue.o \
-	   $D/console.o
+	   $D/console.o\
+	   $D/ide.o
 	   
 
 T_OBJS=$T/sysnc.o \
@@ -41,6 +42,8 @@ LK_OBJS=${LK}/bitmap.o \
 		${LK}/list.o \
 		${LK}/io.o \
 		${LK}/print.o
+
+LK_OBJS=${LU}/syscall.o
 
 U_OBJS=$U/process.o\
 	  $U/tss.o\

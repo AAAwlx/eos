@@ -9,6 +9,7 @@
 struct list general_list;             // 就绪任务队列
 struct list all_list;                 // 全部任务队列
 struct task_pcb* main_thread;         // 如果是主线程
+struct task_pcb* idle_thread; 
 static struct list_node* thread_tag;  // 用于临时保存队列中的线程结点
 static struct list_node* general_tag;
 struct lock lock_pid;
@@ -116,7 +117,11 @@ void schedule() {
         cur->status = TASK_READY;
     } else {  // 如果线程在等待某个事件
     }
-    ASSERT(!list_empty(&general_list));
+    //如果没有任务运行就唤醒休眠线程
+    if (list_empty(&general_list))
+    {
+        thread_unlock(idle_thread);
+    }
     thread_tag = NULL;
     thread_tag = list_pop(&general_list);
     struct task_pcb* next =
@@ -155,6 +160,25 @@ void thread_unlock(struct task_pcb* pthread) {
     }
     intr_set_status(intr);
 }
+void thread_yield()//主动出让cpu等待下一轮调度
+{
+    put_str("thread_yield\n");
+    struct task_pcb* pthread = running_thread();
+    enum intr_status old = intr_disable();
+    ASSERT(!elem_find(&general_list, &pthread->general_tag));
+    list_append(&general_list, &pthread->general_tag);
+    pthread->status = TASK_READY;
+    schedule();
+    intr_set_status(old);
+}
+static void idle(void* arg UNUSED) {
+  while (1) {
+    thread_lock(TASK_BLOCKED);
+    // 执行 hlt 时必须要保证目前处在开中断的情况下
+    // (不然程序就会挂在下面那条指令上)
+    asm volatile("sti; hlt" : : : "memory");
+  }
+}
 // 初始化线程执行的环境
 void thread_init(void) {
     put_str("thread_init start\n");
@@ -163,5 +187,6 @@ void thread_init(void) {
     lock_init(&lock_pid);
     /* 将当前main函数创建为线程 */
     main_thread_init();
+    idle_thread = thread_start("idle", 10, idle, NULL);
     put_str("thread_init done\n");
 }

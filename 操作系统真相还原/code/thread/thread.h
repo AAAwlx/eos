@@ -2,7 +2,7 @@
 #define __THREAD_THREAD_H
 #include "../lib/stdint.h"
 #include"list.h"
-#include"memory.h"
+#include"../kernel/memory.h"
 typedef void thread_func(void*);
 typedef int16_t pid_t;
 enum task_stat {
@@ -82,4 +82,5 @@ void schedule(void);
 void thread_init(void);
 void thread_unlock(struct task_pcb* pthread);
 void thread_lock(enum task_stat stat);
+void thread_yield();
 #endif

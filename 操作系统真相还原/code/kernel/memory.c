@@ -262,7 +262,7 @@ void * sys_malloc(uint32_t size)
     struct arean* a;
     struct mem_block* b;
     if (size > 1024) {  // 如果要分配的内存大于一个页框
-        uint32_t page_cnt = DIV_ROUND_UP(size + sizeof(struct arena), PG_SIZE);    // 向上取整需要的页框数
+        uint32_t page_cnt = DIV_ROUND_UP(size + sizeof(struct arean), PG_SIZE);      // 向上取整需要的页框数
         a = malloc_page(pf,page_cnt);
         if (a==NULL) {
             lock_release(&pool->lock);
