@@ -4,6 +4,9 @@
 #include "interrupt.h"
 #include "io.h"
 #include "timer.h"
+#include"printk.h"
+#include"string.h"
+#include"list.h"
 // 定义各个端口
 #define reg_data(channel) (channel->port_base + 0)
 #define reg_error(channel) (channel->port_base + 1)
@@ -64,27 +67,10 @@ struct boot_sector {
 // 选择要读写硬盘
 static void select_disk(struct disk* hd) {
     uint8_t reg_device = BIT_DEV_MBS | BIT_DEV_LBA;
-    if (hd->dev_no = 1) {
+    if (hd->dev_no == 1) {
         reg_device |= BIT_DEV_DEV;
     }
     outb(reg_dev(hd->mychannel), reg_device);
-}
-// 向硬盘输入要读写的扇区起始地址以及扇区数
-static void select_sector(struct disk* hd, uint32_t lab, uint8_t cnt) {
-    ASSERT(cnt <= max_lba && cnt > 0);
-    // 写入读取扇区数量
-    outb(reg_sect_cnt(hd->mychannel), cnt);
-    // 写入28位起始地址
-    outb(reg_lba_l(hd->mychannel), lab);
-    outb(reg_lba_m(hd->mychannel), lab >> 8);
-    outb(reg_lba_h(hd->mychannel), lab >> 16);
-    outb(reg_dev(hd->mychannel), BIT_DEV_MBS |
-                                     (hd->dev_no == 1 ? BIT_DEV_DEV : 0) |
-                                     BIT_DEV_LBA | lab >> 24);
-}
-static void cmd_out(struct disk* hd, uint8_t cmd) {
-    hd->mychannel->expect_intr = true;  // 为后文中断处理程序做铺垫
-    outb(reg_cmd(hd->mychannel), cmd);
 }
 static void read_from_sector(struct disk* hd, char* buffer, uint8_t cnt) {
     uint32_t buffer_size;
@@ -94,15 +80,6 @@ static void read_from_sector(struct disk* hd, char* buffer, uint8_t cnt) {
         buffer_size = cnt * 512;
     }
     inw(reg_data(hd->mychannel), buffer, buffer_size/2);
-}
-static void write_to_sector(struct disk* hd, char* buffer, uint8_t cnt) {
-    uint32_t buffer_size;
-    if (cnt == 0) {
-        buffer_size = 256 * 512;
-    } else {
-        buffer_size = cnt * 512;
-    }
-    outw(reg_data(hd->mychannel), buffer, buffer_size/2);
 }
 static bool basy_wait(struct disk* hd)
 {
@@ -118,6 +95,71 @@ static bool basy_wait(struct disk* hd)
     }
     return false;
 }
+static void cmd_out(struct disk* hd, uint8_t cmd) {
+    hd->mychannel->expect_intr = true;  // 为后文中断处理程序做铺垫
+    outb(reg_cmd(hd->mychannel), cmd);
+}
+//因为小端序，交换字中的
+static void swap_word(char *buf ,char *dst ,uint32_t len)
+{
+    uint8_t i;
+    for (i = 0; i < len; i += 2) {
+        buf[i + 1] = *dst++;
+        buf[i] = *dst++;
+    }
+    buf[i] = '\0';
+}
+//打印磁盘信息
+static void identify_disk(struct disk* hd)
+{
+    char id_info[512];
+    select_disk(hd);//选择磁盘
+    cmd_out(hd, CMD_IDENTIFY);//输入命令
+    sema_down(&hd->mychannel->disk_down);//阻塞等待磁盘io操作完成后
+    //
+    if (!(basy_wait(hd)))
+    {
+        char error[64];
+        sprintf(error, "%s read sector %d failed!!!!!!\n", hd->name);
+        PANIC(error);
+    }
+    read_from_sector(hd, id_info, 1);
+    char buffer[64];
+    uint8_t sn_start = 10 * 2, sn_len = 20, md_start = 27 * 2, md_len = 40;//计算对应的位置
+    swap_word(buffer, &id_info[sn_start], sn_len);
+    printk("disk %s info:\nSN:%s\n", hd->name, buffer);
+    memset(buffer, 0, sizeof(buffer));
+    swap_word(buffer, &id_info[md_start], md_len);
+    uint32_t sectors = *(uint32_t*)&id_info[60 * 2];
+    printk("      SECTORS: %d\n", sectors);
+    printk("      CAPACITY: %dMB\n", sectors * 512 / 1024 / 1024);
+}
+
+// 向硬盘输入要读写的扇区起始地址以及扇区数
+static void select_sector(struct disk* hd, uint32_t lab, uint8_t cnt) {
+    ASSERT(cnt <= max_lba && cnt > 0);
+    // 写入读取扇区数量
+    outb(reg_sect_cnt(hd->mychannel), cnt);
+    // 写入28位起始地址
+    outb(reg_lba_l(hd->mychannel), lab);
+    outb(reg_lba_m(hd->mychannel), lab >> 8);
+    outb(reg_lba_h(hd->mychannel), lab >> 16);
+    outb(reg_dev(hd->mychannel), BIT_DEV_MBS |
+                                     (hd->dev_no == 1 ? BIT_DEV_DEV : 0) |
+                                     BIT_DEV_LBA | lab >> 24);
+}
+
+
+static void write_to_sector(struct disk* hd, char* buffer, uint8_t cnt) {
+    uint32_t buffer_size;
+    if (cnt == 0) {
+        buffer_size = 256 * 512;
+    } else {
+        buffer_size = cnt * 512;
+    }
+    outw(reg_data(hd->mychannel), buffer, buffer_size/2);
+}
+
 void ide_read(struct disk* hd, char* buffer, uint32_t lab, uint32_t cnt)
 {
     ASSERT(lab <= max_lba);
@@ -181,7 +223,7 @@ void ide_write(struct disk* hd, char* buffer, uint32_t lab, uint32_t cnt)
 void intr_hd_handler(uint8_t irq_no)
 {
     ASSERT(irq_no==0x2e||irq_no==0x2f)
-    uint8_t ch_no = irq_no - 0x2e;
+    uint8_t ch_no = irq_no - 0x2e;//计算是哪个通道上的磁盘
     struct ide_channel* channel = &channels[ch_no];
     if (channel->expect_intr)
     {
@@ -190,7 +232,61 @@ void intr_hd_handler(uint8_t irq_no)
         inb(reg_status(channel));
     }
 }
+void partition_scan(struct disk *hd,uint8_t ext_lba)
+{
+    struct boot_sector* bs = sys_malloc(sizeof(struct boot_sector));
+    ide_read(hd, bs, ext_lba_base, 1);//读出第0个扇区的
+    uint8_t part_idx = 0;
+    struct partition_table_entry* p = bs->partition_table;
+    while (part_idx++ < 4)//第0扇区中一共有四个表项
+    {
+        if (p->fs_type==0x5)//如果是下一个子扩展分区
+        {
+            if (ext_lba_base!=0)
+            {
+                partition_scan(hd, p->start_lba + ext_lba_base);
+            } else {
+                ext_lba_base = p->start_lba;
+                partition_scan(hd, p->start_lba);
+            }
+        }else if (p->fs_type!=0)//如果是逻辑分区
+        {
+            if (ext_lba==0)
+            {
+                hd->mian_parts[p_no].start_lba = ext_lba + p->start_lba;
+                hd->mian_parts[p_no].sec_cnt = p->sec_cnt;
+                hd->mian_parts[p_no].my_disk = hd;
+                list_append(&partition_list, &hd->mian_parts[p_no].part_tag);
+                sprintf(hd->mian_parts[p_no].name, "%s%d", hd->name[p_no],
+                        p_no + 1);
+                p_no++;
+                ASSERT(p_no < 4);
+            }else
+            {
+                hd->logic_parts[l_no].start_lba = ext_lba + p->start_lba;
+                hd->logic_parts[l_no].sec_cnt = p->sec_cnt;
+                hd->logic_parts[l_no].my_disk = hd;
+                list_append(&partition_list, &hd->logic_parts[l_no].part_tag);
+                sprintf(hd->logic_parts[l_no].name, "%s%d", hd->name,
+                        l_no + 5);  // 逻辑分区数字是从5开始,主分区是1～4.
+                l_no++;
+                if (l_no >= 8)  // 只支持8个逻辑分区,避免数组越界
+                    return;
+            }
+        }
+        p++;
+    }
+}
+void partition_info(struct list_elem* pelem, int arg UNUSED)
+{
+    struct partition* part = elem2entry(struct partition, part_tag, pelem);
+    printk("   %s start_lba:0x%x, sec_cnt:0x%x\n", part->name, part->start_lba,
+           part->sec_cnt);
 
+    /* 在此处return false与函数本身功能无关,
+     * 只是为了让主调函数list_traversal继续向下遍历元素 */
+    return false;
+}
 void ide_init() {
     printk("ide_init start\n");
     uint8_t disk_cnt = *((uint8_t*)(0x475));
@@ -215,10 +311,21 @@ void ide_init() {
         lock_init(&c->c_lock);
         sema_init(&c->disk_down, 0);
         register_hsndler(c->inr_no, intr_hd_handler);
-        while ()
+        while (dev_no<2)
         {
-            
+            struct disk* hd = &c->devices[dev_no];
+            hd->mychannel = c;
+            hd->dev_no = dev_no;
+            sprintf(hd->name, "sd%d", dev_no);
+            identify_disk(hd);
+            if (dev_no!=0)//有内核在的磁盘不处理
+            {
+                partition_scan(hd, 0);  // 扫描该硬盘上的分区
+            }
+            p_no = 0, l_no = 0;
+            dev_no++;
         }
+        dev_no = 0;
         channel_no++;
     }
     printk("\n   all partition info\n");

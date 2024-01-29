@@ -68,8 +68,6 @@ void* palloc(struct mem_pool* pool)  // 分配物理页，每次只分配一页
     }
     bitmap_set(&pool->pool_bitmap, bit_idx_start, 1);
     uint32_t phy_start = ((bit_idx_start * PG_SIZE) + pool->phy_addr_start);
-    put_str("palloc ");
-    put_int(phy_start);
     return (void*)phy_start;
 }
 static void page_table_add(void* _vaddr, void* _page_phyaddr) {
@@ -121,14 +119,12 @@ void* malloc_page(enum pool_flags pf, uint32_t pg_cnt) {
     return vaddr_start;
 }
 void* get_kernel_pages(uint32_t pg_cnt) {
-    put_str("get_kernel_pages\n");
     lock_acquire(&kernel_pool.lock);
     void* vaddr = malloc_page(PF_KERNEL, pg_cnt);
     if (vaddr != NULL) {  // 若分配的地址不为空,将页框清0后返回
         memset(vaddr, 0, pg_cnt * PG_SIZE);
     }
     lock_release(&kernel_pool.lock);
-    put_str("get_kernel_pages_down\n");
     return vaddr;
 }
 void* get_user_pages(uint32_t pg_cnt) {
@@ -211,17 +207,19 @@ void mem_pool_init(uint32_t mem_bytes_total) {
     bitmap_init(&kernel_vaddr.vaddr_bitmap);
     put_str("mem_pool_init done\n");
 }
-void* block_desc_init(struct mem_block_desc* descs)
+void* block_desc_init(struct mem_block_desc* desc_array)
 {
-    uint16_t descs_size = 16;
-    for (uint16_t descs_index = 0; descs_index < DESC_CNT; descs_index++)
-    {
-        descs[descs_index].block_per_arena =
-            (PG_SIZE - sizeof(struct arean)) / descs_size;
-        descs[descs_index].block_size = descs_size;
-        list_init(&descs[descs_index].freelist);
-        descs_size *= 2;
-    }
+    uint16_t desc_idx, block_size = 16;
+  /*初始化每个mem_block_desc描述符*/
+  for (desc_idx = 0; desc_idx < DESC_CNT; desc_idx++) {
+    desc_array[desc_idx].block_size = block_size;
+    desc_array[desc_idx].block_per_arena =
+        (PG_SIZE - sizeof(struct arean)) / block_size;
+
+    list_init(&desc_array[desc_idx].freelist);
+
+    block_size *= 2;
+  }
 
 }
 //将获取内存块的地址

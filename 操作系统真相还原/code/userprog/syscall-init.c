@@ -1,11 +1,11 @@
 #include "syscall-init.h"
-#include "./lib/user/syscall.h"
+#include "../lib/user/syscall.h"
 #include "stdint.h"
 #include "print.h"
 #include "thread.h"
 #include "console.h"
 #include "string.h"
-#include "./kernel/memory.h"
+#include "../kernel/memory.h"
 #define syscall_nr 32
 typedef void* syscall;
 syscall syscall_table[syscall_nr];

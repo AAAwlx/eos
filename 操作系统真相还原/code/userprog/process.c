@@ -1,4 +1,4 @@
-#include"print.h"
+#include"printk.h"
 #include"../kernel/memory.h"
 #include"string.h"
 #include"bitmap.h"
@@ -7,6 +7,7 @@
 #include"global.h"
 #include"interrupt.h"
 #include"tss.h"
+#include"debug.h"
 void start_process(void* filename_)
 {
     void* function = filename_;
@@ -25,12 +26,12 @@ void start_process(void* filename_)
 }
 void page_dir_activate(struct task_pcb* p_thread)
 {
-    uint32_t new_page_dir_phy_addr = 0x100000;
-    if (p_thread->pgdir) {
-        new_page_dir_phy_addr = addr_v2p(p_thread->pgdir);
-    }
-     /* 更新页目录寄存器cr3,使新页表生效 */
-    asm volatile ("movl %0, %%cr3" : : "r" (new_page_dir_phy_addr) : "memory");
+     uint32_t pagedir_phy_addr = 0x100000;  // 需要重新填充页目录
+  if (p_thread->pgdir != NULL) {         // 用户进程有自己的也目录表
+    pagedir_phy_addr = addr_v2p((uint32_t)p_thread->pgdir);
+  }
+  // 更新cr3,页表生效
+  asm volatile("movl %0,%%cr3" ::"r"(pagedir_phy_addr) : "memory");
 }
 void process_activate(struct task_pcb* p_thread)
 {
@@ -65,15 +66,19 @@ void create_user_vaddr_bitmap(struct task_pcb* user_prog)
         (0xc0000000 - USER_VADDR_START) / 8 / PG_SIZE;
     bitmap_init(&user_prog->userprog_vaddar.vaddr_bitmap);
 }
-void process_exe1cute(void* filename, char* name)
+void process_execute(void* filename, char* name)
 {
     struct task_pcb* pthread = get_kernel_pages(1);
     init_thread(pthread, name, default_prio);
-    block_desc_init(pthread->u_block_descs);
+    //printk("stack_magic: %s: %x\n", pthread->name, pthread->stack_magic);
     create_user_vaddr_bitmap(pthread);
+    //printk("%s: %x\n", name, filename);
     thread_create(pthread, start_process, filename);
+    //printk("%s: %x\n", pthread->name, pthread->stack_magic);
     pthread->pgdir = create_page_dir();
+    block_desc_init(pthread->u_block_descs);
     enum intr_status old = intr_disable();
+    
     //将进程加入到就绪队列和全部队列中
     ASSERT(!elem_find(&general_list, &pthread->general_tag));
     list_append(&general_list, &pthread->general_tag);

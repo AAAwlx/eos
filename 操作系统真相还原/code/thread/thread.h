@@ -71,9 +71,13 @@ struct task_pcb
 
    uint32_t* pgdir;              // 进程自己页表的虚拟地址
    struct virtual_addr userprog_vaddar;//进程的虚拟内存管理结构体
-   struct mem_block_desc* u_block_descs[DESC_CNT];
+   struct mem_block_desc u_block_descs[DESC_CNT];
    uint32_t stack_magic;  // 用这串数字做栈的边界标记,用于检测栈的溢出
 };
+
+extern struct list general_list;
+extern struct list all_list;
+
 void thread_create(struct task_pcb* pthread, thread_func function, void* func_arg);
 void init_thread(struct task_pcb* pthread, char* name, int prio);
 struct task_pcb* thread_start(char* name, int prio, thread_func function, void* func_arg);

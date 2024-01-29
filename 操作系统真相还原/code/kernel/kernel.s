@@ -87,10 +87,13 @@ VECTOR 0x00, ZERO
   VECTOR 0x2d, ZERO    ;fpu 浮点单元异常
   VECTOR 0x2e, ZERO    ;硬盘
   VECTOR 0x2f, ZERO    ;保留
+
+
 [bits 32]
 extern syscall_table
 section .text
 global syscall_handler
+syscall_handler:
 push 0;
 push ds
 push es 

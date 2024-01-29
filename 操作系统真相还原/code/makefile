@@ -34,20 +34,25 @@ T_OBJS=$T/sysnc.o \
 	   $T/thread.o 
 
 
+U_OBJS=$U/process.o\
+	  $U/tss.o\
+	  $U/syscall-init.o
+
 L_OBJS=$L/stdint.o \
-	   $L/string.o 
+	   $L/string.o \
 	   $L/stdio.o
+	   
+LU_OBJS=${LU}/syscall.o
 
 LK_OBJS=${LK}/bitmap.o \
 		${LK}/list.o \
 		${LK}/io.o \
-		${LK}/print.o
+		${LK}/print.o\
+		${LK}/printk.o
 
-LK_OBJS=${LU}/syscall.o
 
-U_OBJS=$U/process.o\
-	  $U/tss.o\
-	  $U/syscall-init.o
+
+
 
 
 	
@@ -57,13 +62,14 @@ GCC_FLAGS = -c -Wall -m32 -ggdb  \
 OBJS=${K_OBJS}   \
 	 ${D_OBJS}   \
 	 ${T_OBJS}   \
+	 ${U_OBJS}   \
 	 ${LK_OBJS}  \
 	 ${LU_OBJS}  \
-	 ${L_OBJS}  \
-	 ${U_OBJS}
+	 ${L_OBJS}   \
+	 
 	 
 
-include= -I $K -I $D -I $T -I $L -I ${LK} -I $U -I ${LU}
+include= -I $K -I $D -I $T -I $U -I $L -I ${LK} -I ${LU} 
 
 
 
@@ -82,13 +88,21 @@ $D/%.o:$D/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^ 
 
 $T/%.o:$T/%.c
-	gcc ${include} ${GCC_FLAGS} -o $@ $^ 
+	gcc ${include} ${GCC_FLAGS} -o $@ $^
+
+$U/%.o:$U/%.c
+	gcc ${include} ${GCC_FLAGS} -o $@ $^
 
 $L/%.o:$L/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^
 
 ${LK}/%.o:${LK}/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^
+
+${LU}/%.o:${LU}/%.c
+	gcc ${include} ${GCC_FLAGS} -o $@ $^
+
+
 
 dd: build
 	dd if=/dev/zero of=$B/boot.img bs=1M count=60

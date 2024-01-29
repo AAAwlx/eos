@@ -1,8 +1,8 @@
 #include "interrupt.h"
-#include "io.h"
+#include "../lib/kernel/io.h"
 #include "print.h"
 #include "global.h"
-#include "stdint.h"
+#include "../lib/stdint.h"
 /*中断门描述符结构体*/
 struct gate_desc {
   uint16_t func_offset_low_word;  // 中断处理程序在目标代码段内的偏移量(低16位)
@@ -67,7 +67,7 @@ static void idt_desc_init(void) {
   }
   // 单独注册系统调用处理函数
   // 因为该中断是由用户触发，所以中断门dpl要为3,不然会触发GP异常
-  make_idt_desc(&idt[lastindex], IDT_DESC_ATTR_DPL3, syscall_handler);
+  make_idt_desc(&idt[IDT_DESC_CNT], IDT_DESC_ATTR_DPL3, syscall_handler);
 
   put_str("   idt_desc_init done\n");
 }

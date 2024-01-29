@@ -3,13 +3,13 @@
 #include "../lib/string.h"
 #include "debug.h"
 #include "interrupt.h"
-#include "print.h"
+#include "printk.h"
+#include "process.h"
 #include "sysnc.h"
-#include"process.h"
-struct list general_list;             // 就绪任务队列
-struct list all_list;                 // 全部任务队列
-struct task_pcb* main_thread;         // 如果是主线程
-struct task_pcb* idle_thread; 
+struct list general_list;      // 就绪任务队列
+struct list all_list;          // 全部任务队列
+struct task_pcb* main_thread;  // 如果是主线程
+struct task_pcb* idle_thread;
 static struct list_node* thread_tag;  // 用于临时保存队列中的线程结点
 static struct list_node* general_tag;
 struct lock lock_pid;
@@ -23,9 +23,8 @@ struct task_pcb* running_thread() {
         task_pcb*)(esp &
                    0xfffff000);  // 将虚拟地址的最后10位页内偏移去掉就能的到pcb页开始的地址。整页分配
 }
-static pid_t allocate_pid (void)
-{
-    static pid_t next_pid = 0;//设置静态变量
+static pid_t allocate_pid(void) {
+    static pid_t next_pid = 0;  // 设置静态变量
     lock_acquire(&lock_pid);
     next_pid++;
     lock_release(&lock_pid);
@@ -52,10 +51,19 @@ void init_thread(struct task_pcb* pthread, char* name, int prio) {
     pthread->pgdir = NULL;
     pthread->stack_magic = 0x12345678;  // 自定义的魔数
 }
-
+void thread_yield() {
+    put_str("thread_init start\n");
+    struct task_pcb* cur = running_thread();
+    enum intr_status old_status = intr_disable();
+    ASSERT(!elem_find(&general_list, &cur->general_tag));
+    list_append(&general_list, &cur->general_tag);
+    cur->status = TASK_READY;
+    schedule();
+    intr_set_status(old_status);
+}
 static void kernel_thread(thread_func* function, void* func_arg) {
     /* 执行function前要开中断,避免后面的时钟中断被屏蔽,而无法调度其它线程 */
-    put_str("kernel_thread\n");
+    printk("kernel_thread : %s\n", running_thread()->name);
     intr_enable();
     function(func_arg);
 }
@@ -109,26 +117,30 @@ static void main_thread_init() {
 void schedule() {
     ASSERT(intr_get_status() == INTR_OFF);
     struct task_pcb* cur = running_thread();
-    if (cur->status == TASK_RUNNING) {  // 如果当前任务是运行中的状态
+    if (cur->status==TASK_RUNNING) {//如果当前任务是运行中的状态
         ASSERT(!elem_find(&general_list, &cur->general_tag));
-        list_append(&general_list,
-                    &cur->general_tag);  // 将任务加入到就绪的队尾
+        list_append(&general_list, &cur->general_tag); // 将任务加入到就绪的队尾
         cur->ticks = cur->priority;
         cur->status = TASK_READY;
-    } else {  // 如果线程在等待某个事件
+    } else {//如果线程在等待某个事件
+
     }
-    //如果没有任务运行就唤醒休眠线程
-    if (list_empty(&general_list))
-    {
-        thread_unlock(idle_thread);
-    }
+    ASSERT(!list_empty(&general_list));
     thread_tag = NULL;
     thread_tag = list_pop(&general_list);
-    struct task_pcb* next =
-        elem2entry(struct task_pcb, general_tag, thread_tag);
+    struct task_pcb* next = elem2entry(struct task_pcb , general_tag, thread_tag);
     next->status = TASK_RUNNING;
-    process_activate(cur);
+    process_activate(next);
     switch_to(cur, next);
+}
+// 当没有任务运行时执行此函数
+static void idle(void* arg UNUSED) {
+    while (1) {
+        thread_lock(TASK_BLOCKED);
+        // 执行 hlt 时必须要保证目前处在开中断的情况下
+        // (不然程序就会挂在下面那条指令上)
+        asm volatile("sti; hlt" : : : "memory");
+    }
 }
 // 阻塞线程自己
 void thread_lock(enum task_stat stat) {
@@ -160,25 +172,6 @@ void thread_unlock(struct task_pcb* pthread) {
     }
     intr_set_status(intr);
 }
-void thread_yield()//主动出让cpu等待下一轮调度
-{
-    put_str("thread_yield\n");
-    struct task_pcb* pthread = running_thread();
-    enum intr_status old = intr_disable();
-    ASSERT(!elem_find(&general_list, &pthread->general_tag));
-    list_append(&general_list, &pthread->general_tag);
-    pthread->status = TASK_READY;
-    schedule();
-    intr_set_status(old);
-}
-static void idle(void* arg UNUSED) {
-  while (1) {
-    thread_lock(TASK_BLOCKED);
-    // 执行 hlt 时必须要保证目前处在开中断的情况下
-    // (不然程序就会挂在下面那条指令上)
-    asm volatile("sti; hlt" : : : "memory");
-  }
-}
 // 初始化线程执行的环境
 void thread_init(void) {
     put_str("thread_init start\n");
@@ -187,6 +180,6 @@ void thread_init(void) {
     lock_init(&lock_pid);
     /* 将当前main函数创建为线程 */
     main_thread_init();
-    idle_thread = thread_start("idle", 10, idle, NULL);
+    //idle_thread = thread_start("idle", 10, idle, NULL);
     put_str("thread_init done\n");
 }

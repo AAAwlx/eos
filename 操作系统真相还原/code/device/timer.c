@@ -1,9 +1,10 @@
 #include "io.h"
-#include "print.h"
+#include "printk.h"
 #include "timer.h"
 #include "interrupt.h"
 #include "thread.h"
 #include"debug.h"
+#include"print.h"
 #define IRQ0_FREQUENCY	   1
 #define INPUT_FREQUENCY	   1193180//频率设置
 #define COUNTER0_VALUE	   INPUT_FREQUENCY / IRQ0_FREQUENCY
@@ -21,11 +22,10 @@ static void frequency_set(uint8_t counter_port,uint8_t rwl,uint8_t counter_mode,
 }
 static void intr_timer_handler(void)
 {
-    //put_str("timeintr\n");
     struct task_pcb* cur = running_thread();
+    
     ASSERT(cur->stack_magic == 0x12345678);
     cur->elapsed_ticks++;
-    //sys_ticks++;
     if (cur->ticks==0)
     {
         schedule();
@@ -53,12 +53,12 @@ void init_time()
 void mtime_sleep(uint32_t m_seconds) {
   uint32_t sleep_ticks = DIV_ROUND_UP(m_seconds, mil_seconds_per_intr);
   ASSERT(sleep_ticks > 0);
-  tisks_to_sleep(sleep_ticks);
+  ticks_to_sleep(sleep_ticks);
 }
 
 /*以秒为单位的sleep*/
 void stime_sleep(uint32_t s_seconds) {
   uint32_t sleep_ticks = DIV_ROUND_UP(s_seconds * 1000, mil_seconds_per_intr);
   ASSERT(sleep_ticks > 0);
-  tisks_to_sleep(sleep_ticks);
+  ticks_to_sleep(sleep_ticks);
 }

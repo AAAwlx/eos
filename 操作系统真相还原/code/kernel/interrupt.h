@@ -1,6 +1,6 @@
 #ifndef KERNEL_INTERRUPT
 #define KERNEL_INTERRUPT
-#include "stdint.h"
+#include "../lib/stdint.h"
 
 typedef void* intr_handler;  // 用于指向中断处理函数的地址
 
