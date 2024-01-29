@@ -52,7 +52,6 @@ void init_thread(struct task_pcb* pthread, char* name, int prio) {
     pthread->stack_magic = 0x12345678;  // 自定义的魔数
 }
 void thread_yield() {
-    put_str("thread_init start\n");
     struct task_pcb* cur = running_thread();
     enum intr_status old_status = intr_disable();
     ASSERT(!elem_find(&general_list, &cur->general_tag));
@@ -130,6 +129,11 @@ void schedule() {
     thread_tag = list_pop(&general_list);
     struct task_pcb* next = elem2entry(struct task_pcb , general_tag, thread_tag);
     next->status = TASK_RUNNING;
+	if (next->name[0]='u')
+	{
+            //printk("1");
+        }
+
     process_activate(next);
     switch_to(cur, next);
 }
@@ -180,6 +184,6 @@ void thread_init(void) {
     lock_init(&lock_pid);
     /* 将当前main函数创建为线程 */
     main_thread_init();
-    //idle_thread = thread_start("idle", 10, idle, NULL);
+    idle_thread = thread_start("idle", 10, idle, NULL);
     put_str("thread_init done\n");
 }
