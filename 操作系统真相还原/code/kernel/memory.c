@@ -207,7 +207,7 @@ void mem_pool_init(uint32_t mem_bytes_total) {
     bitmap_init(&kernel_vaddr.vaddr_bitmap);
     put_str("mem_pool_init done\n");
 }
-void* block_desc_init(struct mem_block_desc* desc_array)
+void block_desc_init(struct mem_block_desc* desc_array)
 {
     uint16_t desc_idx, block_size = 16;
   /*初始化每个mem_block_desc描述符*/

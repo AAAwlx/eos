@@ -13,15 +13,15 @@ void memset(void *dst_,uint8_t value,uint32_t size)
     return;
 }
 /* 将src_起始的size个字节复制到dst_ */
-void memcpy(void *dst_,const void *src_,uint32_t size)
-{
-    ASSERT(dst_ != NULL && src_ != NULL);
-    uint8_t* dst = (uint8_t)dst_;
-    const uint8_t* src = (uint8_t)src_;
-    while (size-- > 0) {
-        *dst++ = src++;
-    }
+void memcpy(void *dest, const void *src, uint32_t len) {
+  ASSERT(dest != NULL && src != NULL);
+  uint8_t *To = (uint8_t *)dest;
+  uint8_t *From = (uint8_t *)src;
+  while (len-- > 0) {
+    *To++ = *From++;
+  }
 }
+
 /* 连续比较以地址a_和地址b_开头的size个字节,若相等则返回0,若a_大于b_返回+1,否则返回-1 */
 int memcmp(const void* a_, const void* b_, uint32_t size)
 {

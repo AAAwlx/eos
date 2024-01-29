@@ -7,12 +7,13 @@
 #include "interrupt.h"
 #include "memory.h"
 #include "printk.h"
+#include"print.h"
 #include "string.h"
 #include "tss.h"
 #include"timer.h"
 /*构建用户进程初始化上下文*/
 void start_process(void* filename_) {
-    printk("start_process");
+    
     void* function = filename_;
     struct task_pcb* cur = running_thread();
     cur->self_kstack += sizeof(struct thread_stack);  // 跳过进程栈，指向中断栈
@@ -36,7 +37,7 @@ void start_process(void* filename_) {
     proc_stack->esp =
         (void*)((uint32_t)get_a_page(PF_USER, USER_STACK3_VADDR) + PG_SIZE);
     proc_stack->ss = SELECTOR_U_DATA;
-
+printk("start_process");
     asm volatile("movl %0, %%esp; jmp intr_exit"
                  :
                  : "g"(proc_stack)
@@ -51,9 +52,10 @@ void page_dir_activate(struct task_pcb* p_thread) {
   uint32_t pagedir_phy_addr = 0x100000;  // 需要重新填充页目录
   if (p_thread->pgdir != NULL) {         // 用户进程有自己的也目录表
     pagedir_phy_addr = addr_v2p((uint32_t)p_thread->pgdir);
+    
   }
   // 更新cr3,页表生效
-  asm volatile("movl %0,%%cr3" ::"r"(pagedir_phy_addr) : "memory");
+  asm volatile("movl %0,%%cr3" ::"r"(pagedir_phy_addr) : "memory");    
 }
 
 /* 激活线程或进程的页表,更新 tss 中的 esp0 为进程的特权级 0 的栈 */
@@ -62,8 +64,9 @@ void process_activate(struct task_pcb* p_thread) {
   /*激活该进程或线程的页表*/
   page_dir_activate(p_thread);
   if (p_thread->pgdir) {
-    /* 更新该进程的 esp0,用于此进程被中断时保留上下文 */
-    update_tss_esp(p_thread);
+      
+      /* 更新该进程的 esp0,用于此进程被中断时保留上下文 */
+      update_tss_esp(p_thread);
   }
 }
 
@@ -71,9 +74,10 @@ void process_activate(struct task_pcb* p_thread) {
 uint32_t* create_page_dir(void) {
   /* 用户进程的页表不能让用户直接访问到,所以在内核空间来申请 */
   uint32_t* page_dir_vaddr = get_kernel_pages(1);
+  printk("create_page_dir:%x", page_dir_vaddr);
   if (page_dir_vaddr == NULL) {
-    console_put_str("create_page_dir: get_kernel_page failed!");
-    return NULL;
+      console_put_str("create_page_dir: get_kernel_page failed!");
+      return NULL;
   }
   // 1.复制页表
   // page_dir_vaddr + 0x300*4 ：页表目录768项
@@ -104,8 +108,8 @@ void create_user_vaddr_bitmap(struct task_pcb* user_prog) {
 /*创建用户进程*/
 void process_execute(void* filename, char* name) {
   // PCB
+ 
   struct task_pcb* thread = get_kernel_pages(1);
-
   init_thread(thread, name, default_prio);
   create_user_vaddr_bitmap(thread);
   thread_create(thread, start_process, filename);
@@ -118,14 +122,6 @@ void process_execute(void* filename, char* name) {
   list_append(&general_list, &thread->general_tag);
   ASSERT(!elem_find(&all_list, &thread->all_list_tag));
   list_append(&all_list, &thread->all_list_tag);
-  /*while (!list_empty(&general_list))
-  {
-     struct list_node* thread_tag = NULL;
-    thread_tag = list_pop(&general_list);
-    struct task_pcb* next = elem2entry(struct task_pcb , general_tag, thread_tag);
-    printk("|%s|\n", next->name);
-    list_append(&general_list, thread_tag); 
-  }*/
-  stime_sleep(10);
+  
   intr_set_status(old_status);
 }
