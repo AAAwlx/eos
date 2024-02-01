@@ -37,7 +37,7 @@ void start_process(void* filename_) {
     proc_stack->esp =
         (void*)((uint32_t)get_a_page(PF_USER, USER_STACK3_VADDR) + PG_SIZE);
     proc_stack->ss = SELECTOR_U_DATA;
-printk("start_process");
+//printk("start_process\n");
     asm volatile("movl %0, %%esp; jmp intr_exit"
                  :
                  : "g"(proc_stack)
@@ -74,7 +74,6 @@ void process_activate(struct task_pcb* p_thread) {
 uint32_t* create_page_dir(void) {
   /* 用户进程的页表不能让用户直接访问到,所以在内核空间来申请 */
   uint32_t* page_dir_vaddr = get_kernel_pages(1);
-  printk("create_page_dir:%x", page_dir_vaddr);
   if (page_dir_vaddr == NULL) {
       console_put_str("create_page_dir: get_kernel_page failed!");
       return NULL;
@@ -95,27 +94,32 @@ uint32_t* create_page_dir(void) {
 
 /* 创建用户进程虚拟地址位图 */
 void create_user_vaddr_bitmap(struct task_pcb* user_prog) {
-  user_prog->userprog_vaddar.vaddr_start = USER_VADDR_START;
-  // 位图要占用的页数量
-  uint32_t bitmap_pg_cnt =
-      DIV_ROUND_UP((0xc0000000 - USER_VADDR_START) / PG_SIZE / 8, PG_SIZE);
-  user_prog->userprog_vaddar.vaddr_bitmap.bits = get_kernel_pages(bitmap_pg_cnt);
-  user_prog->userprog_vaddar.vaddr_bitmap.bitmap_len =
-      (0xc0000000 - USER_VADDR_START) / PG_SIZE / 8;
-  bitmap_init(&user_prog->userprog_vaddar.vaddr_bitmap);
+  
+   user_prog->userprog_vaddar.vaddr_start = USER_VADDR_START;
+   uint32_t bitmap_pg_cnt = DIV_ROUND_UP((0xc0000000 - USER_VADDR_START) / PG_SIZE / 8 , PG_SIZE);
+   user_prog->userprog_vaddar.vaddr_bitmap.bits =
+       get_kernel_pages(bitmap_pg_cnt);
+
+   user_prog->userprog_vaddar.vaddr_bitmap.bitmap_len = (0xc0000000 - USER_VADDR_START) / PG_SIZE / 8;
+   bitmap_init(&user_prog->userprog_vaddar.vaddr_bitmap);
+   
 }
 
 /*创建用户进程*/
 void process_execute(void* filename, char* name) {
   // PCB
- 
+  
   struct task_pcb* thread = get_kernel_pages(1);
   init_thread(thread, name, default_prio);
+  
   create_user_vaddr_bitmap(thread);
+  //printk("process_execute :%s %x %x\n", name,filename,start_process);
   thread_create(thread, start_process, filename);
+  
   thread->pgdir = create_page_dir();
 
   block_desc_init(thread->u_block_descs);  // 初始化用户进程内存块
+  thread->stack_magic = 0x12345678;
   // 关闭中断
   enum intr_status old_status = intr_disable();
   ASSERT(!elem_find(&general_list, &thread->general_tag));

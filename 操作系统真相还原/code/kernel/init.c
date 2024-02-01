@@ -18,6 +18,6 @@ void init_all()
     keyboard_init();
     console_init(); 
     tss_init(); 
-    //syscall_init();
+    syscall_init();
     //ide_init();  
 }
