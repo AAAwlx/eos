@@ -1,7 +1,7 @@
 #ifndef __FS_SUPER_BLOCK_H
 #define __FS_SUPER_BLOCK_H
 #include "stdint.h"
-//超级块结构描述磁盘块中的信息
+//超级块结构描述本文件系统中的信息
 struct super_block {
     uint32_t magic;          // 文件系统的标识类型
     uint32_t sec_cnt;        // 该磁盘分区的总扇区数

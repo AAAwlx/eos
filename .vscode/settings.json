@@ -20,6 +20,23 @@
         "syscall.h": "c",
         "list.h": "c",
         "stdio.h": "c",
-        "timer.h": "c"
+        "timer.h": "c",
+        "*.tcc": "c",
+        "exception": "c",
+        "io_context": "c",
+        "memory_resource": "c",
+        "fstream": "c",
+        "iosfwd": "c",
+        "new": "c",
+        "ostream": "c",
+        "sstream": "c",
+        "stop_token": "c",
+        "streambuf": "c",
+        "*.inc": "c",
+        "console.h": "c",
+        "bitmap.h": "c",
+        "string.h": "c",
+        "printk.h": "c",
+        "init.h": "c"
     }
 }

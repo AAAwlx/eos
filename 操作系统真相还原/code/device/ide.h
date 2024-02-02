@@ -1,6 +1,7 @@
 #ifndef DEVICE_IDE
 #define DEVICE_IDE
 #include"stdint.h"
+#include"super_block.h"
 #include "list.h"
 #include"../kernel/memory.h"
 #include "sysnc.h"
@@ -32,5 +33,12 @@ struct ide_channel {
     struct semaphore disk_down;
     struct disk devices[2];//两个磁盘
 };
-void ide_init();
+void ide_init(void);
+void intr_hd_handler(uint8_t irq_no);
+
+extern uint8_t channel_cnt;
+extern struct ide_channel channels[];
+extern struct list partition_list;
+void ide_read(struct disk* hd, char* buffer, uint32_t lab, uint32_t cnt);
+void ide_write(struct disk* hd, char* buffer, uint32_t lab, uint32_t cnt);
 #endif
