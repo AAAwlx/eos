@@ -67,7 +67,7 @@ int32_t block_bitmap_alloc(struct partition* part)
       return -1;
    }
    bitmap_set(&part->block_bitmap, bit_idx, 1);
-   return (part->sb->data_start_lba + bit_idx);
+   return (part->sb->data_start_lba + bit_idx);//位图中的位再加上数据区起始的位置，就是空闲块所在的磁盘扇区号
 }
 void bitmap_sync(struct partition* part, uint32_t bit_idx, uint8_t btmp)
 {
@@ -87,4 +87,114 @@ void bitmap_sync(struct partition* part, uint32_t bit_idx, uint8_t btmp)
         break;
     }
     ide_write(part->my_disk, bitmap_off, sec_lba, 1);
+}
+int32_t file_create(struct dir* parent_dir, char* filename, uint8_t flag)
+{
+    char* io_buf = (char*)sys_malloc(1024);
+    if (io_buf==NULL)
+    { 
+        printk("in file_creat: sys_malloc for io_buf failed\n");
+        return -1;
+    }
+    uint8_t rollback_step = 0;	       // 用于操作失败时回滚各资源状态
+    //分配inode号
+    uint8_t inode_no = inode_bitmap_alloc(cur_part);
+    if (inode_no==-1)
+    {
+        printk("in file_creat: allocate inode failed\n");
+        return -1;
+    }
+    //初始化inode结构体
+    struct inode* new_file_inode = (struct inode*)sys_malloc(sizeof(struct inode)); 
+    if (new_file_inode == NULL) {
+        printk("file_create: sys_malloc for inode failded\n");
+        rollback_step = 1;
+        goto rollback;
+    }
+    inode_init(inode_no, new_file_inode);
+    //在系统支持的打开文件描述符中为新建文件分配
+    int fd_idx = get_free_slot_in_global();
+    if (fd_idx==-1)
+    {
+        printk("exceed max open files\n");
+        rollback_step = 2;
+        goto rollback;
+    }
+    file_table[fd_idx].fd_flag = flag;
+    file_table[fd_idx].fd_inode = new_file_inode;
+    file_table[fd_idx].fd_pos = 0;
+    file_table[fd_idx].fd_inode->write_deny = false;
+    struct dir_entry new_dir_entry;
+    memset(&new_dir_entry, 0, sizeof(struct dir_entry));
+    create_dir_entry(filename, inode_no, FT_DIRECTORY, &new_dir_entry);
+    if (sync_dir_entry(parent_dir, &new_dir_entry, io_buf)) {
+        printk("sync dir_entry to disk failed\n");
+        rollback_step = 3;
+        goto rollback;
+    }
+    memset(io_buf, 0, 1024);
+    /* b 将父目录i结点的内容同步到硬盘 */
+    inode_sync(cur_part, parent_dir->inode, io_buf);
+    memset(io_buf, 0, 1024);
+    /* c 将新创建文件的i结点内容同步到硬盘 */
+    inode_sync(cur_part, new_file_inode, io_buf);
+    //将inode位图写入磁盘
+    bitmap_sync(cur_part, inode_no, INODE_BITMAP);
+    list_push(&cur_part->open_inodes, &new_file_inode->inode_tag);
+    new_file_inode->i_open_cnts = 1;
+
+   sys_free(io_buf);
+   return pcb_fd_install(fd_idx);
+rollback:
+    switch (rollback_step) {
+        case 3:
+            /* 失败时,将file_table中的相应位清空 */
+            memset(&file_table[fd_idx], 0, sizeof(struct file));
+        case 2:
+            sys_free(new_file_inode);
+        case 1:
+            /* 如果新文件的i结点创建失败,之前位图中分配的inode_no也要恢复 */
+            bitmap_set(&cur_part->inode_bitmap, inode_no, 0);
+            break;
+    }
+    sys_free(io_buf);
+    return -1;
+}
+int32_t file_open(uint32_t inode_no, uint8_t flag)
+{
+    int fd_idx = get_free_slot_in_global();
+    if (fd_idx == -1) {
+      printk("exceed max open files\n");
+      return -1;
+   }
+   file_table[fd_idx].fd_inode = inode_open(cur_part, inode_no);
+   file_table[fd_idx].fd_flag = flag;
+   file_table[fd_idx].fd_pos = 0;
+   bool* write_deny = &file_table[fd_idx].fd_inode->write_deny;
+    if (flag & O_RDWR || flag & O_WRONLY)
+    {
+        enum intr_status old = intr_disable();
+        if (!(*write_deny))//如果没有其他进程在写
+        {
+            *write_deny = true;
+            intr_set_status(old);
+        }else//如果有其他进程在写则返回
+        {
+            intr_set_status(old);
+            printk("file can`t be write now, try again later\n");
+	        return -1;
+        }
+    }
+   return pcb_fd_install(fd_idx);
+}
+int32_t file_close(struct file* file) 
+{
+    if (file==NULL)
+    {
+        return -1;
+    }
+    file->fd_inode->write_deny = false;
+    inode_close(file->fd_inode);
+    file->fd_inode = NULL;
+    return 0;
 }

@@ -37,6 +37,9 @@
         "bitmap.h": "c",
         "string.h": "c",
         "printk.h": "c",
-        "init.h": "c"
+        "init.h": "c",
+        "ide.h": "c",
+        "super_block.h": "c",
+        "fs.h": "c"
     }
 }
