@@ -119,6 +119,12 @@ void process_execute(void* filename, char* name) {
   thread->pgdir = create_page_dir();
 
   block_desc_init(thread->u_block_descs);  // 初始化用户进程内存块
+  /*for (uint8_t i = 0; i < DESC_CNT; i++)
+  {
+      printk("block_size%d:%d ", i, thread->u_block_descs[i].block_size);
+      printk("%d\n", list_empty(thread->u_block_descs[i].freelist));
+  }*/
+
   thread->stack_magic = 0x12345678;
   // 关闭中断
   enum intr_status old_status = intr_disable();

@@ -3,11 +3,11 @@
 #include "print.h"
 #include "interrupt.h"
 // 初始化
-void list_init(struct list* list) {
-  list->head.next = &list->tail;
-  list->tail.prev = &list->head;
-  list->head.prev = &list->tail;
-  list->tail.next = &list->head;
+void list_init (struct list* list) {
+   list->head.prev = NULL;
+   list->head.next = &list->tail;
+   list->tail.prev = &list->head;
+   list->tail.next = NULL;
 }
 
 // 在before前插入elem
@@ -61,7 +61,7 @@ bool elem_find(struct list* plist, struct list_node* obj_elem) {
 
 /*判断链表是否为空*/
 bool list_empty(struct list* plist) {
-  return (plist->head.next == &plist->tail) ? true : false;
+    return (plist->head.next == &plist->tail ? true : false);
 }
 
 /*返回链表长度*/

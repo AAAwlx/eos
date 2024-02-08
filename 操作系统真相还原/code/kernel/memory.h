@@ -25,16 +25,16 @@ struct virtual_addr {
     uint32_t vaddr_start;
 };
 struct mem_block {
-    struct list_node* node;
+    struct list_node node;
 };
 struct mem_block_desc
 {
     uint32_t block_size;//该描述符对应的一个内存块的大小
     uint32_t block_per_arena;//该内存仓库中有几个内存块
-    struct list* freelist;  // 空闲块链表
+    struct list freelist;  // 空闲块链表
 };
 
-extern struct mem_pool kernel_pool, user_pool;
+extern struct mem_pool kernel_pool, user_pool; 
 void mem_init(void);
 void* get_kernel_pages(uint32_t pg_cnt);
 void* malloc_page(enum pool_flags pf, uint32_t pg_cnt);

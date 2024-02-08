@@ -1,7 +1,7 @@
 #ifndef DEVICE_IDE
 #define DEVICE_IDE
 #include"stdint.h"
-#include"super_block.h"
+//#include"super_block.h"
 #include "list.h"
 #include"../kernel/memory.h"
 #include "sysnc.h"

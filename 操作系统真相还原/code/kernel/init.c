@@ -19,5 +19,5 @@ void init_all()
     console_init(); 
     tss_init(); 
     syscall_init();
-    //ide_init();  
+    ide_init();  
 }
