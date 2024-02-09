@@ -28,7 +28,7 @@ struct ide_channel {
     char name[8];
     uint32_t port_base;//起始端口号
     uint8_t inr_no;//中断号
-    struct lock* c_lock;//通道锁，一个通道上有两个磁盘
+    struct lock c_lock;//通道锁，一个通道上有两个磁盘
     bool expect_intr;//是否等待中断
     struct semaphore disk_down;
     struct disk devices[2];//两个磁盘
@@ -39,6 +39,6 @@ void intr_hd_handler(uint8_t irq_no);
 extern uint8_t channel_cnt;
 extern struct ide_channel channels[];
 extern struct list partition_list;
-void ide_read(struct disk* hd, char* buffer, uint32_t lab, uint32_t cnt);
+void ide_read(struct disk* hd, void* buf, uint32_t lba, uint32_t sec_cnt);
 void ide_write(struct disk* hd, char* buffer, uint32_t lab, uint32_t cnt);
 #endif

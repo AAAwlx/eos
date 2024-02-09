@@ -153,7 +153,16 @@ void schedule() {
     process_activate(next);
     switch_to(cur, next);
 }
-void thread_yield(){}
+void thread_yield(void) {
+  put_str("thread_init start\n");
+  struct task_pcb* cur = running_thread();
+  enum intr_status old_status = intr_disable();
+  ASSERT(!elem_find(&general_list, &cur->general_tag));
+  list_append(&general_list, &cur->general_tag);
+  cur->status = TASK_READY;
+  schedule();
+  intr_set_status(old_status);
+}
 /* 当前线程将自己阻塞,标志其状态为stat. */
 void thread_lock(enum task_stat stat) {
     ASSERT(((stat == TASK_BLOCKED) || (stat == TASK_WAITING) ||

@@ -341,20 +341,20 @@ void pagetable_remove(void *vaddr)
 }
 //虚拟地址的回收
 static void vaddr_remove(enum pool_flags pf, void* _vaddr, uint32_t pg_cnt) {
-    uint32_t bit_idx_start = 0, vaddr = (uint32_t)_vaddr, cnt = 0;
-
+    uint32_t bit_idx_start = 0;
     if (pf == PF_KERNEL) {  // 内核虚拟内存池
-        bit_idx_start = (vaddr - kernel_vaddr.vaddr_start) / PG_SIZE;
+        bit_idx_start = ((uint32_t)_vaddr - kernel_vaddr.vaddr_start) / PG_SIZE;
+        int cnt = 0;
         while (cnt < pg_cnt) {
             bitmap_set(&kernel_vaddr.vaddr_bitmap, bit_idx_start + cnt++, 0);
         }
     } else {  // 用户虚拟内存池
-        struct task_pcb* cur_thread = running_thread();
+       struct task_pcb* pthread = running_thread();
+       int i = 0;
         bit_idx_start =
-            (vaddr - cur_thread->userprog_vaddar.vaddr_start) / PG_SIZE;
-        while (cnt < pg_cnt) {
-            bitmap_set(&cur_thread->userprog_vaddar.vaddr_bitmap,
-                       bit_idx_start + cnt++, 0);
+            ((uint32_t)_vaddr - pthread->userprog_vaddar.vaddr_start) / PG_SIZE;
+        while (i < pg_cnt) {
+            bitmap_set(&pthread->userprog_vaddar.vaddr_bitmap, bit_idx_start + i++, 0);
         }
     }
 }
