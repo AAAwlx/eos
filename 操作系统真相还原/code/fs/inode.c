@@ -4,8 +4,9 @@
 #include"ide.h"
 #include"string.h"
 #include"interrupt.h"
-#include"inode.h"
 #include"thread.h"
+#include "super_block.h"
+#include"printk.h"
 struct inode_position
 {
     bool two_sec;// inode是否跨扇区
@@ -15,7 +16,8 @@ struct inode_position
 //获取inode所在的扇区和扇区内的偏移量
 static void inode_locate(struct partition* part, uint32_t inode_no, struct inode_position* inode_pos)
 {
-    ASSERT(inode_no > 4096);//判断是否超出最大inode号
+    printk("inode_locate\n");
+    ASSERT(inode_no < 4096);  // 判断是否超出最大inode号
     uint32_t inode_table_lba = part->sb->inode_table_lba;//读出inode块的起始地址
     uint32_t inode_size = sizeof(struct inode);//算出inode结构体的大小
     uint32_t off_size = inode_size * inode_no;//在磁盘中的偏移量就是
@@ -56,43 +58,47 @@ void inode_sync(struct partition* part, struct inode* inode, void* io_buf)
         ide_write(part->my_disk, io_buf, inode_pos->sec_lba, 1);
     }
 }
-struct inode* inode_open(struct partition* part, uint32_t inode_no)
-{
-    struct list_node* i = part->open_inodes.head.next;
+struct inode* inode_open(struct partition* part, uint32_t inode_no) {
+    
+    // 先在已经打开的inode链表中找inode.此链表相当于缓冲哦
+    struct list_node* elem = part->open_inodes.head.next;
     struct inode* inode_found;
-    while (i!=&part->open_inodes.tail)//如果没到结尾
-    {
-        inode_found = elem2entry(struct inode, inode_tag, i);
-        if (inode_found->i_no!=inode_no) {
-            i = i->next;
-        } else {
+    while (elem != &part->open_inodes.tail) {
+        inode_found = elem2entry(struct inode, inode_tag, elem);
+        if (inode_found->i_no == inode_no) {
             inode_found->i_open_cnts++;
             return inode_found;
         }
-    }
-    struct inode_position i_pos;
-    inode_locate(part, inode_no, &i_pos);
-    struct task_pcb* cur = running_thread();
-    //inode结构需要多个进程之间共享，因此要在内核空间
-    uint32_t pgdir = cur->pgdir;
-    cur->pgdir = NULL;
-    inode_found = (struct inode*)sys_malloc(sizeof(struct inode));
-    cur->pgdir = pgdir;
-    char* inode_buf;
-    if (i_pos.two_sec)  // 如果跨区了
-    {
-        inode_buf = (char*)sys_malloc(1024);
-        ide_read(part->my_disk, inode_buf, i_pos.sec_lba, 2);
-        memcpy(inode_found, (inode_buf + i_pos.off_size), sizeof(struct inode));
-    } else {
-        inode_buf = (char*)sys_malloc(512);
-        ide_read(part->my_disk, inode_buf, i_pos.sec_lba, 1);
-        memcpy(inode_found, (inode_buf + i_pos.off_size), sizeof(struct inode));
-    }
-    list_push(&i, inode_found);
-    inode_found->i_open_cnts = 1;
-    sys_free(inode_buf);
-    return inode_found;
+        elem = elem->next;
+  }
+printk("inode_open");
+  /*从缓冲中没有找到*/
+  struct inode_position inode_pos;
+  inode_locate(part, inode_no, &inode_pos);  // 获取在磁盘中的位置
+  struct task_pcb* cur = running_thread();
+
+  /* 为使通过 sys_malloc 创建的新 inode 被所有任务共享, 需要将 inode
+ 置于内核空间,故需要临时 将 cur_pbc->pgdir 置为 NULL */
+  uint32_t* cur_pagedir_bak = cur->pgdir;
+  cur->pgdir = NULL;  // 暂时置为空
+  inode_found = (struct inode*)sys_malloc(sizeof(struct inode));
+  /*恢复pgdir*/
+  cur->pgdir = cur_pagedir_bak;
+  char* inode_buf;
+  if (inode_pos.two_sec) {  // 跨扇区
+    inode_buf = (char*)sys_malloc(1024);
+    ide_read(part->my_disk, inode_buf,inode_pos.sec_lba,  2);
+  } else {
+    inode_buf = (char*)sys_malloc(512);
+    ide_read(part->my_disk,inode_buf, inode_pos.sec_lba,  1);
+  }
+  memcpy(inode_found, inode_buf + inode_pos.off_size, sizeof(struct inode));
+
+  // 插入队头，因为最可能被访问到
+  list_push(&part->open_inodes, &inode_found->inode_tag);
+  inode_found->i_open_cnts = 1;
+  sys_free(inode_buf);
+  return inode_found;
 }
 void inode_close(struct inode* inode) {
    /* 若没有进程再打开此文件,将此inode去掉并释放空间 */

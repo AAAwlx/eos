@@ -14,7 +14,9 @@
 struct dir root_dir;             // 根目录
 void open_root_dir(struct partition* part)
 {
+     printk("open_root_dir\n");
     root_dir.inode = inode_open(part, part->sb->root_inode_no);
+   
     root_dir.dir_pos = 0;
 }
 struct dir* dir_open(struct partition* part, uint32_t inode_no)

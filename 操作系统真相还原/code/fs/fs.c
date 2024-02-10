@@ -14,111 +14,134 @@
 struct partition* cur_part;  // 默认情况下操作的是哪个分区
 
 static void partition_format(struct partition* part) {
-    uint32_t boot_sector_sects = 1;
-    uint32_t super_block_sects = 1;  // 超级块占用的大小
-    uint32_t inode_bitmap_sects =
-        DIV_ROUND_UP(MAX_FILES_PER_PART, BITS_PER_SECTOR);  // inode位图的大小
-    uint32_t inode_table_sects =
-        DIV_ROUND_UP((sizeof(struct inode) * MAX_FILES_PER_PART),
-                     SIZE_MAX);  // inode块的大小
-    uint32_t used_sects = boot_sector_sects + super_block_sects +
-                          inode_bitmap_sects +
-                          inode_table_sects;  // 已经使用过的扇区数量
-    uint32_t free_sects = part->sec_cnt - used_sects;  // 总扇区数减去被使用过的
+  /* blocks_bitmap_init(为方便实现,一个块大小是一扇区)*/
+  // 计算每一个模块所要占用的扇区数
+  uint32_t boot_sector_sects = 1;
+  uint32_t super_block_sects = 1;
+  uint32_t inode_bitmap_sects =
+      DIV_ROUND_UP(MAX_FILES_PER_PART, BITS_PER_SECTOR);
 
-    // 块位图占据的区域
-    uint32_t block_bitmap_sects;
-    block_bitmap_sects = DIV_ROUND_UP(free_sects, BITS_PER_SECTOR);
-    /* block_bitmap_bit_len是位图中位的长度,也是可用块的数量 */
-    uint32_t block_bitmap_bit_len = free_sects - block_bitmap_sects;
-    block_bitmap_sects = DIV_ROUND_UP(block_bitmap_bit_len, BITS_PER_SECTOR);
+  uint32_t inode_table_sects =
+      DIV_ROUND_UP((sizeof(struct inode) * MAX_FILES_PER_PART), SECTOR_SIZE);
 
-    struct super_block sb;
-    sb.magic = 0x19590318;
-    sb.sec_cnt = part->sec_cnt;
-    sb.inode_cnt = MAX_FILES_PER_PART;  // inode的数量应该和支持的最大文件数
-    sb.part_lba_base = part->start_lba;  // 本块起始的地址
-    sb.block_bitmap_lba = sb.part_lba_base + 2;  // 跳过第0mbr和第1块超级块的位置
-    sb.block_bitmap_sects = block_bitmap_sects;  // 位图块占用的扇区数量
-    sb.inode_table_lba = sb.block_bitmap_lba + sb.part_lba_base;
-    sb.inode_bitmap_sects = inode_bitmap_sects;
-    sb.inode_table_lba = sb.inode_bitmap_lba + sb.inode_bitmap_sects;
-    sb.inode_table_sects = inode_table_sects;
+  uint32_t used_sects = boot_sector_sects + super_block_sects +
+                        inode_bitmap_sects + inode_table_sects;
+  uint32_t free_sects = part->sec_cnt - used_sects;
 
-    sb.data_start_lba = sb.inode_table_lba + sb.inode_table_sects;
-    sb.root_inode_no = 0;
-    sb.dir_entry_size = sizeof(struct dir_entry);
-    printk("%s info:\n", part->name);
-    printk(
-        "   magic:0x%x\n   part_lba_base:0x%x\n   all_sectors:0x%x\n   "
-        "inode_cnt:0x%x\n   block_bitmap_lba:0x%x\n   "
-        "block_bitmap_sectors:0x%x\n   inode_bitmap_lba:0x%x\n   "
-        "inode_bitmap_sectors:0x%x\n   inode_table_lba:0x%x\n   "
-        "inode_table_sectors:0x%x\n   data_start_lba:0x%x\n",
-        sb.magic, sb.part_lba_base, sb.sec_cnt, sb.inode_cnt,
-        sb.block_bitmap_lba, sb.block_bitmap_sects, sb.inode_bitmap_lba,
-        sb.inode_bitmap_sects, sb.inode_table_lba, sb.inode_table_sects,
-        sb.data_start_lba);
-    struct disk* hd = part->my_disk;
-    // 将超级块写入到磁盘中
-    ide_write(hd, part->start_lba + 1, &sb, 1);
-    printk("   super_block_lba:0x%x\n", part->start_lba + 1);
-    uint32_t buf_size =
-        (sb.block_bitmap_sects > sb.inode_bitmap_sects ? sb.block_bitmap_sects
-                                                       : sb.inode_bitmap_sects);
-    // 为位图分配暂存的内存缓冲区
-    uint8_t* buf = (uint8_t*)sys_malloc(buf_size);
+  /************** 简单处理块位图占据的扇区数 ***************/
+  /*块位图是放在可用区域内的*/
+  uint32_t block_bitmap_sects;
+  block_bitmap_sects = DIV_ROUND_UP(free_sects, BITS_PER_SECTOR);
+  uint32_t block_bitmap_bit_len =
+      free_sects - block_bitmap_sects;  // 除去块位图占用的扇区
+  // 二次计算
+  block_bitmap_sects = DIV_ROUND_UP(block_bitmap_bit_len, BITS_PER_SECTOR);
 
-    // 将块位图初始化并写入到磁盘中
-    buf[0] |= 0x01;  // 将第0位预留出来给根目录
-    uint32_t block_bitmap_last_byte =
-        block_bitmap_bit_len / 8;  // 计算出块位图的字节数
-    uint8_t block_bitmap_last_bit =
-        block_bitmap_bit_len % 8;  // 没能被整除剩余的位
-    uint32_t last_size =
-        SECTOR_SIZE - (block_bitmap_last_byte %
-                       SECTOR_SIZE);  // 块位图结尾中最终不足一个扇区的部分
-    memset(&buf[block_bitmap_last_byte], 0xff,
-           last_size);  // 将扇区中空余的部分补全为1
-    uint8_t bit_idx = 0;
-    // 将最后block_bitmap_last_bit剩余不满一字节的位数恢复为0
-    while (bit_idx <= block_bitmap_last_bit) {
-        buf[block_bitmap_last_byte] &= ~(1 << bit_idx++);
-    }
-    ide_write(hd, sb.block_bitmap_lba, buf, sb.block_bitmap_sects);
+  /*超级块初始化*/
+  struct super_block sb;
+  sb.magic = 0x19590318;
+  sb.sec_cnt = part->sec_cnt;
+  sb.inode_cnt = MAX_FILES_PER_PART;
+  sb.part_lba_base = part->start_lba;
 
-    // 将inode位图写入到磁盘中
-    memset(buf, 0, buf_size);
-    buf[0] |= 0x1;  // 将首位标志位预留给根目录
-    ide_write(hd, sb.inode_bitmap_lba, buf,
-              sb.inode_table_sects);  // inode号是整数倍
+  sb.block_bitmap_lba = sb.part_lba_base + 2;  // 第一个引导块，第二个为超级快
+  sb.block_bitmap_sects = block_bitmap_sects;
 
-    // 将inode号为0的文件信息写入到inode区域中,根目录u
-    memset(buf, 0, buf_size);
-    struct inode* i = (struct inode*)buf;
-    i->i_size = sb.dir_entry_size * 2;  //.目录项和 ..目录项
-    i->i_no = 0;
-    i->i_sectors[0] =
-        sb.data_start_lba;  // 将第一个数据块指针初始化为数据区的初始处
-    ide_write(hd, sb.inode_table_lba, buf, sb.inode_table_sects);
+  sb.inode_bitmap_lba = sb.block_bitmap_lba + sb.block_bitmap_sects;
+  sb.inode_bitmap_sects = inode_bitmap_sects;
 
-    // 初始化根目录和.以及..
-    memset(buf, 0, buf_size);
-    struct dir_entry* p_de = (struct dir_entry*)buf;
-    /* 初始化当前目录"." */
-    memcpy(p_de->filename, ".", 1);
-    p_de->i_no = 0;
-    p_de->f_type = FT_DIRECTORY;  // 文件类型为目录类型
-    /* 初始化当前目录".." */
-    memcpy(p_de->filename, "..", 2);
-    p_de->i_no = 0;
-    p_de->f_type = FT_DIRECTORY;  // 文件类型为目录类型
-    ide_write(hd, sb.data_start_lba, buf, 1);
-    printk("root_dir_lba:0x%x\n", sb.data_start_lba);
-    printk("%s format done\n", part->name);
-    sys_free(buf);
+  sb.inode_table_lba = sb.inode_bitmap_lba + sb.inode_bitmap_sects;
+  sb.inode_table_sects = inode_table_sects;
+
+  sb.data_start_lba = sb.inode_table_lba + sb.inode_table_sects;
+  sb.root_inode_no = 0;
+  sb.dir_entry_size = sizeof(struct dir_entry);
+
+  printk("%s info:\n", part->name);
+
+  printk("magic : 0x%x\n", sb.magic);
+  printk("part_lba_base : 0x%x\n", sb.part_lba_base);
+  printk("all_sectors : 0x%x\n", sb.sec_cnt);
+  printk("inode_cnt : 0x%x\n", sb.inode_cnt);
+  printk("block_bitmap_lba : 0x%x\n", sb.block_bitmap_lba);
+  printk("block_bitmap_sectors : 0x%x\n ", sb.block_bitmap_sects);
+  printk("inode_bitmap_lba : 0x%x\n", sb.inode_bitmap_lba);
+  printk("inode_bitmap_sectors : 0x%x\n", sb.inode_bitmap_sects);
+  printk("inode_table_lba : 0x%x\n", sb.inode_table_lba);
+  printk("inode_table_sectors : 0x%x\n", sb.inode_table_sects);
+  printk("data_start_lba : 0x%x\n", sb.data_start_lba);
+
+  struct disk* hd = part->my_disk;
+    
+  /*1. 将超级块写入本分区的1扇区*/
+  ide_write(hd, &sb, part->start_lba + 1, 1);
+  printk("super_block_lba:0x%x\n", part->start_lba + 1);
+
+  /*找数据量最大的元信息，用其尺寸做存储缓冲区(存放位图)*/
+  uint32_t buf_size =
+      (sb.block_bitmap_sects >= sb.inode_bitmap_sects ? sb.block_bitmap_sects
+                                                      : sb.inode_bitmap_sects);
+
+  buf_size = (buf_size >= sb.inode_table_sects ? buf_size : inode_table_sects) *
+             SECTOR_SIZE;
+
+  uint8_t* buf = (uint8_t*)sys_malloc(buf_size);
+
+  /*2. 将块位图初始化并写入sb.block_bitmap_lab*/
+  buf[0] |= 0x01;  // 将第0个块预留给根目录，位图中先占位置
+  uint32_t block_bitmap_last_byte = block_bitmap_bit_len / 8;
+  uint8_t block_bitmap_last_bit = block_bitmap_bit_len % 8;
+  uint32_t last_size = SECTOR_SIZE - (block_bitmap_last_byte % SECTOR_SIZE);
+
+  // 最后一个位图多于空间全置1(先忽略bit)
+  memset(&buf[block_bitmap_last_byte], 0xff, last_size);
+  /*在补上bit*/
+  uint8_t bit_idx = 0;
+  while (bit_idx <= block_bitmap_last_bit) {
+    buf[block_bitmap_last_byte] &= ~(1 << bit_idx++);
+  }
+
+  ide_write(hd,  buf,sb.block_bitmap_lba, sb.block_bitmap_sects);
+
+  // 3 将 inode 位图初始化并写入 sb.inode_bitmap_lba
+  // 先清空缓冲区
+  memset(buf, 0, buf_size);
+  buf[0] |= 0x1;
+  // inode一个4096个刚好占用一个扇区
+  ide_write(hd,  buf,sb.inode_bitmap_lba, sb.inode_bitmap_sects);
+
+  // 4 将 inode 数组初始化并写入 sb.inode_table_lba
+  memset(buf, 0, buf_size);
+  // 写入第0个inode(第0个指向根目录)
+  struct inode* i = (struct inode*)buf;
+  i->i_size = sb.dir_entry_size * 2;  // .和..
+  i->i_no = 0;  // 根目录占inode数组中的第0个inode
+  i->i_sectors[0] = sb.data_start_lba;
+
+  ide_write(hd, buf,sb.inode_table_lba,  sb.inode_table_sects);
+
+  // 5 将根目录写入 sb.data_start_lba
+  // 初始化根目录的两个目录项 . 和 ..
+  memset(buf, 0, buf_size);
+  struct dir_entry* p_de = (struct dir_entry*)buf;
+  // 初始化.
+  memcpy(p_de->filename, ".", 1);
+  p_de->i_no = 0;
+  p_de->f_type = FT_DIRECTORY;
+  p_de++;
+  // 初始化 ..
+  memcpy(p_de->filename, "..", 2);
+  p_de->i_no = 0;  // 根目录的父目录依然是根目录自己
+  p_de->f_type = FT_DIRECTORY;
+  // 第一个块已经预留给根目录
+  ide_write(hd, buf,sb.data_start_lba,  1);
+  printk("root_dir_lba:0x%x\n", sb.data_start_lba);
+  printk("%s format done\n", part->name);
+  sys_free(buf);
 }
+
 static bool mount_partition(struct list_node* pelem, int arg) {
+    
     char* part_name = (char*)arg;  // 初始化分区名
     struct partition* part = elem2entry(struct partition, part_tag, pelem);
     if (!strcmp(part->name, part_name))  // 如果是默认的part
@@ -152,6 +175,7 @@ static bool mount_partition(struct list_node* pelem, int arg) {
         if (cur_part->inode_bitmap.bits == NULL) {
             PANIC("alloc memory failed!");
         }
+        printk("mount_partition %s", (char*)arg);
         cur_part->block_bitmap.bitmap_len = sb_buf->block_bitmap_lba;
         ide_read(hd, cur_part->inode_bitmap.bits, sb_buf->inode_bitmap_lba,
                  sb_buf->inode_bitmap_sects);
@@ -174,7 +198,7 @@ static char* path_parse(char* pathname, char* name_store) {
     }
     return pathname;
 }
-int32_t path_depth_cnt(char* pathname) {
+int32_t path_depth_cnt(char* pathname) {//计算路径长度
     ASSERT(pathname != NULL);  // 判断pathname是否是空
     char* p = pathname;
     char name[MAX_FILE_NAME_LEN];
@@ -193,50 +217,65 @@ int32_t path_depth_cnt(char* pathname) {
 }
 // 初始化文件系统
 void filesys_init() {
-    uint8_t channel_no = 0, dev_no, part_idx = 0;
-    struct super_block* sb_buf = (struct super_block*)sys_malloc(SECTOR_SIZE);
-    while (channel_no < channel_cnt) {
-        dev_no = 0;
-        while (dev_no < 2) {
-            if (dev_no == 0)  // 跳过操作系统所在的
-            {
-                dev_no++;
-                continue;
-            }
-            struct disk* hd = &channels[channel_no].devices[dev_no];
-            struct partition* part = hd->mian_parts;  // 前四个分区是
-            while (part_idx < 12)                     // 遍历该磁盘上的
-            {
-                if (part_idx == 4) {
-                    part = hd->mian_parts;
-                }
-                if (part->sec_cnt != 0) {
-                    memset(sb_buf, 0, SECTOR_SIZE);
-                    ide_read(hd, part->start_lba + 1, sb_buf, 1);
-                    if (sb_buf->magic == 0x19590318) {
-                        printk("%s has filesystem\n", part->name);
-                    } else {
-                        printk("formatting %s`s partition %s......\n", hd->name,
-                               part->name);
-                        partition_format(part);
-                    }
-                }
-                part_idx++;
-                part++;
-            }
-            dev_no++;
+  uint8_t channel_no = 0, dev_no = 0, part_idx = 0;
+  /*sb_buf用来存储从硬盘上读入的超级块*/
+  struct super_block* sb_buf =
+      (struct super_block*)sys_malloc(sizeof(struct super_block));
+
+  if (sb_buf == NULL) {
+    PANIC("filesys_init alloc memory failed!...\n");
+  }
+   
+  while (channel_no < channel_cnt) {
+    dev_no = 0;
+    while (dev_no < 2) {
+      if (dev_no == 0) {  // 跨过主盘(裸盘)
+        dev_no++;
+        continue;
+      }
+      struct disk* hd = &channels[channel_no].devices[dev_no];
+      struct partition* part = hd->mian_parts;
+      while (part_idx < 12) {  // 4(主)+8(逻辑)
+        if (part_idx == 4) {
+          part = hd->logic_parts;
         }
-        channel_no++;
+       
+        if (part->sec_cnt != 0) {
+          memset(sb_buf, 0, SECTOR_SIZE);
+          // 读取超级块，根据魔术来判断是否存在文件系统
+          ide_read(hd, sb_buf, part->start_lba + 1, 1);
+          if (sb_buf->magic == 0x19590318) {
+            printk("%s has filesystem\n", part->name);
+          } else {
+            printk("formatting %s`s partition %s......\n", hd->name,
+                   part->name);
+            partition_format(part);
+          }
+        }
+        part_idx++;
+        part++;
+      }
+      dev_no++;  // 下一个磁盘
     }
-    sys_free(sb_buf);
-    char default_part[8] = "sdb1";
-    list_traversal(&partition_list, mount_partition,
-                   (int)default_part);  // 挂载默认的分区
-    open_root_dir(cur_part);            // 打开根目录
-    uint32_t fd_idx = 0;
-    while (fd_idx < MAX_FILE_OPEN) {
-        file_table[fd_idx++].fd_inode = NULL;
-    }
+    channel_no++;  // 下一个通道
+  }
+  sys_free(sb_buf);
+
+  /*确认默认操作的分区*/
+  char default_part[8] = "sdb1";
+
+  /*挂载分区*/
+  list_traversal(&partition_list, mount_partition, (int)default_part);
+  
+  // 将当前分区跟目录打开
+  open_root_dir(cur_part);
+  
+  /* 初始化文件表 */
+  uint32_t fd_idx = 0;
+  while (fd_idx < MAX_FILE_OPEN) {
+    file_table[fd_idx++].fd_inode = NULL;
+  }
+  printk("searching filesystem......\n");
 }
 static int search_file(const char* pathname,
                        struct path_search_record* searched_record) {
@@ -294,52 +333,64 @@ static int search_file(const char* pathname,
     return dir_e.i_no;  // 如果最后还是目录，返回目录的inode号
 }
 int32_t sys_open(const char* pathname, uint8_t flags) {
-    if (pathname[strlen(pathname) - 1] ==
-        '/')  // 判断是否是路径分隔符结尾，说明为目录，sys只打开文件
-    {
-        printk(
-            "can`t open a direcotry with open(), use opendir() to instead\n");
-        return -1;
-    }
-    ASSERT(flags < 7);  // 判断打开标志位是否正确，一共只有四项，小于7
-    int fd = -1;
-    struct path_search_record search_record;
-    memset(&search_record, 0, sizeof(struct path_search_record));
-    uint32_t pathname_deep = path_depth_cnt(pathname);
-    int inode_no = search_file(pathname, &search_record);
-    bool found = inode_no != -1 ? true : false;
-    if (search_record.file_type = FT_DIRECTORY)  // 如果打开的是目录
-    {
-        printk(
-            "can`t open a direcotry with open(), use opendir() to instead\n");
-        dir_close(search_record.parent_dir);
-        return -1;
-    }
-    if (!found && !(O_CREAT & flags))  // 如果没找到文件且不需要创建文件
-    {
-        printk("in path %s, file %s is`t exist\n", search_record.searched_path,
-               (strrchr(search_record.searched_path, '/') + 1));
-        dir_close(search_record.parent_dir);
-        return -1;
-    } else if (found && O_CREAT & flags)  // 如果找到文件
-    {
-        printk("%s has already exist!\n", pathname);
-        dir_close(search_record.parent_dir);
-        return -1;
-    }
-    switch (flags & O_CREAT) {
-        case O_CREAT:
-            printk("creating file\n");
-            fd = file_create(search_record.parent_dir,
-                             (strrchr(pathname, '/') + 1), flags);
-            dir_close(search_record.parent_dir); 
-            break; 
-        default:
-            /* 其余情况均为打开已存在文件:
-             * O_RDONLY,O_WRONLY,O_RDWR */
-        fd = file_open(inode_no, flags);
-    }
-    return fd;
+  /* 对目录要用 dir_open,这里只有 open 文件 */
+  if (pathname[strlen(pathname) - 1] == '/') {
+    printk("can't open a directory %s \n", pathname);
+    return -1;
+  }
+  ASSERT(flags <= 7);
+  int32_t fd = -1;  // 默认找不见
+  struct path_search_record searched_record;
+  memset(&searched_record, 0, sizeof(struct path_search_record));
+
+  /*记录目录深度，帮助判断中间某个目录不存在的情况*/
+  uint32_t pathname_depth = path_depth_cnt((char*)pathname);
+  /*先检查文件是否存在*/
+  int inode_no = search_file(pathname, &searched_record);
+  bool found = inode_no != -1 ? true : false;
+
+  if (searched_record.file_type == FT_DIRECTORY) {
+    printk("can`t open a direcotry with open(), use opendir() to instead\n");
+    dir_close(searched_record.parent_dir);
+    return -1;
+  }
+
+  uint32_t path_search_depth = path_depth_cnt(searched_record.searched_path);
+
+  /* 先判断是否把 pathname 的各层目录都访问到了,即是否在某个中间目录就失败了 */
+  if (pathname_depth != path_search_depth) {  // 中间失败
+    printk("cannot access %s: Not a directory, subpath %s is't exist\n",
+           pathname, searched_record.searched_path);
+    dir_close(searched_record.parent_dir);
+    return -1;
+  }
+
+  /* 若是在最后一个路径上没找到,并且并不是要创建文件,直接返回-1 */
+  if (!found && !(flags & O_CREAT)) {
+    printk("in path %s, file %s is`t exist\n", searched_record.searched_path,
+           (strrchr(searched_record.searched_path, '/') + 1));
+    dir_close(searched_record.parent_dir);
+    return -1;
+  } else if (found && flags & O_CREAT) {
+    printk("%s has already exist!\n", pathname);
+    dir_close(searched_record.parent_dir);
+    return -1;
+  }
+
+  switch (flags & O_CREAT) {
+    case O_CREAT:
+      printk("creating file\n");
+      fd = file_create(searched_record.parent_dir, (strrchr(pathname, '/') + 1),
+                       flags);
+      dir_close(searched_record.parent_dir);
+      break;
+    default:
+      /* 其余情况均为打开已存在文件:
+       * O_RDONLY,O_WRONLY,O_RDWR */
+      fd = file_open(inode_no, flags);
+      break;
+  }
+  return fd;
 }
 static uint32_t fd_local2global(uint32_t local_fd) {
    struct task_pcb* cur = running_thread();

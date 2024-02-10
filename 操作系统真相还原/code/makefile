@@ -4,7 +4,7 @@ D=device
 T=thread
 U=userprog
 L=lib
-#F=fs
+F=fs
 #S=shell
 LK=lib/kernel
 LU=lib/user
@@ -38,6 +38,12 @@ U_OBJS=$U/process.o\
 	  $U/tss.o\
 	  $U/syscall-init.o
 
+F_OBJS=$F/fs.o \
+	   $F/inode.o \
+	   $F/dir.o  \
+	   $F/file.o
+
+
 L_OBJS=$L/stdint.o \
 	   $L/string.o \
 	   $L/stdio.o
@@ -66,10 +72,10 @@ OBJS=${K_OBJS}   \
 	 ${LK_OBJS}  \
 	 ${LU_OBJS}  \
 	 ${L_OBJS}   \
-	 
+	 ${F_OBJS} \
 	 
 
-include= -I $K -I $D -I $T -I $U -I $L -I ${LK} -I ${LU} 
+include= -I $K -I $D -I $T -I $U -I $L -I $F -I ${LK} -I ${LU} 
 
 
 
@@ -94,6 +100,9 @@ $U/%.o:$U/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^
 
 $L/%.o:$L/%.c
+	gcc ${include} ${GCC_FLAGS} -o $@ $^
+
+$F/%.o:$F/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^
 
 ${LK}/%.o:${LK}/%.c

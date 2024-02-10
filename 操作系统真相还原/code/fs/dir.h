@@ -4,7 +4,7 @@
 #include "inode.h"
 #include "ide.h"
 #include "global.h"
-
+#include"fs.h"
 #define MAX_FILE_NAME_LEN  16	 // 最大文件名长度
 
 //记录内存中的文件数据

@@ -297,8 +297,9 @@ static void partition_scan(struct disk* hd, uint32_t ext_lba) {
 	    hd->mian_parts[p_no].my_disk = hd;
 	    list_append(&partition_list, &hd->mian_parts[p_no].part_tag);
 	    sprintf(hd->mian_parts[p_no].name, "%s%d", hd->name, p_no + 1);
-	    p_no++;
-	    ASSERT(p_no < 4);	    // 0,1,2,3
+            printk("p_no:%d", p_no);
+            p_no++;
+            ASSERT(p_no < 4);	    // 0,1,2,3
 	 } else {
 	    hd->logic_parts[l_no].start_lba = ext_lba + p->start_lba;
 	    hd->logic_parts[l_no].sec_cnt = p->sec_cnt;

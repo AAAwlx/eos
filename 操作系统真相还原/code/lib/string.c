@@ -57,16 +57,15 @@ uint32_t strlen(const char* str)
    return (p - str - 1);
 }
 /* 比较两个字符串,若a_中的字符大于b_中的字符返回1,相等时返回0,否则返回-1. */
-int8_t strcmp (const char *a, const char *b)
-{
-    ASSERT(a != NULL && b != NULL);
-    while (a != NULL && *b == *a)
-    {
-        *a++;
-        *b++;
-    }
-    return *a < *b ? -1 : *a > *b;
+int strcmp(const char *str1, const char *str2) {
+  ASSERT(str1 != NULL || str2 != NULL);
+  while ((*str1 == *str2) && (*str1 != '\0')) {
+    str1++;
+    str2++;
+  }
+  return *str1 - *str2;
 }
+
 /* 从左到右查找字符串str中首次出现字符ch的地址(不是下标,是地址) */
 char* strchr(const char* string, const uint8_t ch)
 {

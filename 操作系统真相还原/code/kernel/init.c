@@ -8,6 +8,7 @@
 #include "timer.h"
 #include "tss.h"
 #include "ide.h"
+#include"fs.h"
 void init_all()
 {
     put_str("initing\n");
@@ -19,5 +20,6 @@ void init_all()
     console_init(); 
     tss_init(); 
     syscall_init();
-    ide_init();  
+    ide_init();
+    filesys_init();
 }
