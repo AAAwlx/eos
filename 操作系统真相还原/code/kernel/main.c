@@ -26,9 +26,9 @@ int main(void) {
     printf("fd:%d\n", fd);
     /*sys_open("/file1", O_RDWR);
     
-    sys_write(fd, "hello,world\n", 12);*/
+    sys_write(fd, "hello,world\n", 12);
     //sys_close(fd);
-    printf("%d closed now\n", fd);
+    printf("%d closed now\n", fd);*/
    while (1);
     return 0;
 }

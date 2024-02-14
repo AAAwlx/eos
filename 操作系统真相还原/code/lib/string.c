@@ -2,15 +2,12 @@
 #include"debug.h"
 #include"global.h"
 #include"print.h"
-void memset(void *dst_,uint8_t value,uint32_t size)
-{
-    ASSERT(dst_!=NULL);
-    uint8_t* dst = (uint8_t)dst_;
-    while (size--) {
-        dst = value;
-        *dst++;
-    }
-    return;
+void memset(void *dest, uint8_t val, uint32_t len) {
+  ASSERT(dest != NULL);
+  uint8_t *dst = (uint8_t *)dest;
+  while (len-- > 0) {
+    *dst++ = val;
+  }
 }
 /* 将src_起始的size个字节复制到dst_ */
 void memcpy(void *dest, const void *src, uint32_t len) {

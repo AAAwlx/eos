@@ -4,6 +4,7 @@
 #include "print.h"
 #include "thread.h"
 #include "console.h"
+#include"fs.h"
 #include "string.h"
 #include "../kernel/memory.h"
 #define syscall_nr 32
@@ -17,11 +18,6 @@ uint32_t sys_getpid(void)
     }
 
     return running_thread()->pid;
-}
-uint32_t sys_write(char *str)
-{
-    console_put_str(str);
-    return strlen(str);
 }
 void syscall_init()
 {

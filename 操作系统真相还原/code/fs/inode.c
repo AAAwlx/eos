@@ -71,7 +71,6 @@ struct inode* inode_open(struct partition* part, uint32_t inode_no) {
         }
         elem = elem->next;
   }
-printk("inode_open");
   /*从缓冲中没有找到*/
   struct inode_position inode_pos;
   inode_locate(part, inode_no, &inode_pos);  // 获取在磁盘中的位置
