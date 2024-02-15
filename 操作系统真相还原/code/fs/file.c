@@ -130,7 +130,7 @@ int32_t file_create(struct dir* parent_dir, char* filename, uint8_t flag)
     memset(&new_dir_entry, 0, sizeof(struct dir_entry));
     create_dir_entry(filename, inode_no, FT_DIRECTORY, &new_dir_entry);
     printk("sync_dir_entry\n");
-    if (sync_dir_entry(parent_dir, &new_dir_entry, io_buf)) {
+    if (!sync_dir_entry(parent_dir, &new_dir_entry, io_buf)) {
         printk("sync dir_entry to disk failed\n");
         rollback_step = 3;
         goto rollback;
