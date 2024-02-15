@@ -7,6 +7,8 @@
 #include"thread.h"
 #include "super_block.h"
 #include"printk.h"
+#include"fs.h"
+#include"file.h"
 struct inode_position
 {
     bool two_sec;// inode是否跨扇区
@@ -37,9 +39,9 @@ static void inode_locate(struct partition* part, uint32_t inode_no, struct inode
 void inode_sync(struct partition* part, struct inode* inode, void* io_buf)
 {
     uint8_t inode_no = inode->i_no;
-    struct inode_position* inode_pos;
+    struct inode_position inode_pos;
     inode_locate(part, inode_no, &inode_pos);
-    ASSERT(inode_pos->sec_lba <= (part->sec_cnt + part->start_lba));//检查inode的位置是否在本分区之内
+    ASSERT(inode_pos.sec_lba <= (part->sec_cnt + part->start_lba));//检查inode的位置是否在本分区之内
     struct inode pure_inode;
     memcpy(&pure_inode, inode,sizeof(struct inode));
     //清楚inode中的几项
@@ -47,15 +49,15 @@ void inode_sync(struct partition* part, struct inode* inode, void* io_buf)
     pure_inode.i_open_cnts = 0;
     pure_inode.inode_tag.prev = NULL;//将inode的前继节点
     char* inode_buf = (char*)io_buf;
-    if (inode_pos->two_sec)
+    if (inode_pos.two_sec)
     {
-        ide_read(part->my_disk, io_buf, inode_pos->sec_lba, 2);//将其实的那个块读取出来
-        memcpy((io_buf + inode_pos->off_size), &pure_inode, sizeof(struct inode));//拼凑上新写入的inode表项
-        ide_write(part->my_disk, io_buf, inode_pos->sec_lba, 2);//将写入新表项之后的
+        ide_read(part->my_disk, io_buf, inode_pos.sec_lba, 2);//将其实的那个块读取出来
+        memcpy((io_buf + inode_pos.off_size), &pure_inode, sizeof(struct inode));//拼凑上新写入的inode表项
+        ide_write(part->my_disk, io_buf, inode_pos.sec_lba, 2);//将写入新表项之后的
     } else {
-        ide_read(part->my_disk, io_buf, inode_pos->sec_lba, 1);
-        memcpy((io_buf + inode_pos->off_size), &pure_inode, sizeof(struct inode));
-        ide_write(part->my_disk, io_buf, inode_pos->sec_lba, 1);
+        ide_read(part->my_disk, io_buf, inode_pos.sec_lba, 1);
+        memcpy((io_buf + inode_pos.off_size), &pure_inode, sizeof(struct inode));
+        ide_write(part->my_disk, io_buf, inode_pos.sec_lba, 1);
     }
 }
 struct inode* inode_open(struct partition* part, uint32_t inode_no) {
@@ -125,4 +127,65 @@ void inode_init(uint32_t inode_no,struct inode* new_i)//初始化inode结构体
     for (uint8_t i = 0; i < 13; i++) {
         new_i->i_sectors[i] = 0;
     }
+}
+void inode_delete(struct partition* part, uint32_t inode_no, void* io_buf)
+{
+    ASSERT(inode_no < 4096);//判断inode是否合法
+    struct inode_position inode_pos;
+    inode_locate(cur_part, inode_no, &inode_pos);
+    ASSERT(inode_pos.sec_lba <= (part->start_lba + part->sec_cnt));//判断获取的inode表项位置是否合法
+    char* buf = io_buf;
+    if (inode_pos.two_sec)  // 是否跨越扇区
+    {
+        ide_read(cur_part->my_disk, buf, inode_pos.sec_lba, 2);
+        memset((buf + inode_pos.off_size), 0, 2);
+        ide_write(cur_part->my_disk, buf, inode_pos.sec_lba, 2);
+    } else {
+        ide_read(cur_part->my_disk, buf, inode_pos.sec_lba, 1);
+        memset((buf + inode_pos.off_size), 0, 1);
+        ide_write(cur_part->my_disk, buf, inode_pos.sec_lba, 1);
+    }
+}
+void inode_release(struct partition* part, uint32_t inode_no)
+{
+    struct inode* inode_to_del = inode_open(cur_part, inode_no);
+    ASSERT(inode_to_del->i_no == inode_no);
+    uint8_t block_idx = 0,block_cnt=12;
+    uint32_t block_bitmap_idx;
+    uint32_t all_blocks[140] = {0};	  //12个直接块+128个间接块
+    while (block_idx<12)
+    {
+        all_blocks[block_idx] = inode_to_del->i_sectors[block_idx];
+        block_idx++;
+    }
+    if (inode_to_del->i_sectors[12]!=0)
+    {
+        ide_read(part->my_disk, all_blocks + 12, inode_to_del->i_sectors[12], 1);
+        block_cnt = 140;
+        block_bitmap_idx =
+            inode_to_del->i_sectors[12] - part->sb->data_start_lba;
+        ASSERT(block_bitmap_idx > 0);
+        bitmap_set(&part->block_bitmap, block_bitmap_idx, 0);
+        bitmap_sync(cur_part, block_bitmap_idx, BLOCK_BITMAP);
+    }
+    block_idx = 0;
+    while (block_idx<block_cnt)
+    {
+        if (all_blocks[block_idx]!=0)
+        {
+            block_bitmap_idx = 0;
+            block_bitmap_idx=all_blocks[block_idx]- part->sb->data_start_lba;
+            ASSERT(block_bitmap_idx > 0);
+	        bitmap_set(&part->block_bitmap, block_bitmap_idx, 0);
+	        bitmap_sync(cur_part, block_bitmap_idx, BLOCK_BITMAP);
+        }
+        block_idx++;
+    }
+    bitmap_set(&part->inode_bitmap, inode_no, 0);  
+    bitmap_sync(cur_part, inode_no, INODE_BITMAP);
+    void* io_buf = sys_malloc(1024);
+    inode_delete(part, inode_no, io_buf);
+    sys_free(io_buf);
+    /***********************************************/
+    inode_close(inode_to_del);
 }

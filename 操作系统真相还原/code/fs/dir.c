@@ -193,3 +193,107 @@ bool sync_dir_entry(struct dir* parent_dir, struct dir_entry* p_de,
   printk("directory is full!\n");
   return false;
 }
+bool delete_dir_entry(struct partition* part, struct dir* pdir, uint32_t inode_no, void* io_buf)
+{
+    struct inode* dir_inode = pdir->inode;
+    uint32_t block_idx = 0, all_blocks[140] = {0};
+	while (block_idx<12)
+	{
+            all_blocks[block_idx] = pdir->inode->i_sectors[block_idx];
+    }
+	if (dir_inode->i_sectors[12]!=0)
+	{
+        ide_read(part->my_disk, all_blocks + 12, dir_inode->i_sectors[12],1);
+    }
+	uint32_t dir_entry_size = part->sb->dir_entry_size;
+   uint32_t dir_entrys_per_sec = (SECTOR_SIZE / dir_entry_size);       // 每扇区最大的目录项数目
+   struct dir_entry* dir_e = (struct dir_entry*)io_buf;   //目录项
+   struct dir_entry* dir_entry_found = NULL;
+   uint8_t dir_entry_idx, dir_entry_cnt;
+   bool is_dir_first_block = false;     // 目录的第1个块
+   block_idx = 0;
+   while (block_idx<140)
+   {
+		is_dir_first_block = false; 
+		if (all_blocks[block_idx]==0)
+		{
+            block_idx++;
+			continue;
+        }
+		dir_entry_idx = dir_entry_cnt = 0;
+        memset(io_buf, 0, SECTOR_SIZE);
+        ide_read(part->my_disk, io_buf, all_blocks[block_idx], 1);
+		while (dir_entry_idx<dir_entrys_per_sec)
+		{
+			if ((dir_e+dir_entry_idx)->f_type!=FT_UNKNOWN)
+			{
+				if (!strcmp((dir_e + dir_entry_idx)->filename, "."))//
+				{
+                    is_dir_first_block = true;        
+                } else if (strcmp((dir_e + dir_entry_idx) ->filename,".") &&strcmp((dir_e + dir_entry_idx) ->filename,".."))  
+                {
+                    dir_entry_cnt++;                 // 统计此扇区内的目录项个数,用来判断删除目录项后是否回收该扇区
+					if ((dir_e + dir_entry_idx)->i_no ==inode_no)//如果是需要删除的i节点
+                    {            
+                        ASSERT(dir_entry_found == NULL);           
+                        dir_entry_found = dir_e + dir_entry_idx;            
+                    }
+                }
+            	dir_entry_idx++;
+        	}	
+   		}
+		/*若次扇区未找到该目录项，继续在下一个扇区找*/
+    	if (dir_entry_found == NULL) {
+    		block_idx++;
+ 	 		continue;
+		}
+		ASSERT(dir_entry_cnt >= 1);
+		if (!is_dir_first_block&&dir_entry_cnt==1)//如果不是目录的第一个扇区，且只有这一个目录项，将目录所占的磁盘块回收
+		{
+			//先将当前目录项所在的磁盘块回收
+			uint32_t block_bitmap_idx = all_blocks[block_idx] - part->sb->data_start_lba;
+      		bitmap_set(&part->block_bitmap, block_bitmap_idx, 0);
+      		bitmap_sync(cur_part, block_bitmap_idx, BLOCK_BITMAP);
+			//修改inode中块索引内容
+            if (block_idx<12)//直接块
+			{
+                dir_inode->i_sectors[block_idx] = 0;
+            }else
+			{
+				//如果是间接块，先统计当前间接块的数量
+				uint32_t indirect_blocks = 0;
+	    		uint32_t indirect_block_idx = 12;
+				while (indirect_block_idx<140){
+					if (all_blocks[indirect_block_idx]!=0){
+                        indirect_blocks++;                    
+					}
+                    indirect_block_idx++;
+                }
+				ASSERT(indirect_blocks >= 1);  // 包括当前间接块
+				if (indirect_blocks>1)//如果删除后仍需使用间接块，则只修改间接索引内容
+				{
+                    all_blocks[block_idx] = 0;
+                    ide_write(part->my_disk, all_blocks + 12,dir_inode->i_sectors[12], 1);
+                } else // 否则将第12块间接块释放
+                {    block_bitmap_idx = dir_inode->i_sectors[12] - part->sb->data_start_lba;
+          			bitmap_set(&part->block_bitmap, block_bitmap_idx, 0);
+          			bitmap_sync(cur_part, block_bitmap_idx, BLOCK_BITMAP);
+          			/* 将间接索引表地址清 0 */
+          			dir_inode->i_sectors[12] = 0;                             
+                }           
+            }
+        }else//如果目录中还有其他目录项，之清空这一项的内容
+		{
+            memset(dir_entry_found, 0, dir_entry_size);
+            ide_write(part->my_disk, io_buf, all_blocks[block_idx], 1);
+        }
+        //更新目录对应的信息inode信息
+		ASSERT(dir_inode->i_size >= dir_entry_size);
+        dir_inode->i_size -= dir_entry_size;
+        memset(io_buf, 0, SECTOR_SIZE * 2);
+      	inode_sync(part, dir_inode, io_buf);
+        return false;
+   }
+        /* 所有块中未找到则返回false,若出现这种情况应该是serarch_file出错了 */
+   return false;
+}

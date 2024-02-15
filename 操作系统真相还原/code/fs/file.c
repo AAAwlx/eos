@@ -433,8 +433,7 @@ int32_t file_read(struct file* file, void* buf, uint32_t count)
                 all_blocks[block_idx] = file->fd_inode->i_sectors[block_idx];
                 block_idx++;
             }
-        } else if (block_read_start_idx < 12 &&
-                   block_read_end_idx > 12)  // 间接块直接块都有
+        } else if (block_read_start_idx < 12 && block_read_end_idx >= 12)  // 间接块直接块都有
         {
             block_idx = block_read_start_idx;
             while (block_idx<12)
