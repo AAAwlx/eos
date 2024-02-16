@@ -652,3 +652,45 @@ switch (rollback_step) {
   sys_free(io_buf);
   return -1;
 }
+struct dir* sys_opendir(const char* name)
+{
+    ASSERT(name < MAX_FILE_NAME_LEN);//判断名字是否合法
+    if (name == '/'&&name[1]==0||name=='.')//如果是根目录直接返回
+    {
+        return &root_dir;
+    }
+    struct path_search_record searchde_record;
+    memset(&searchde_record, 0, sizeof(struct path_search_record));
+    uint32_t inode_no = search_file(name, &searchde_record);
+    struct dir* ret = NULL;
+    if (inode_no == -1) {
+        printk("In %s sub path %s not exits\n", name,searchde_record.searched_path);
+    } else {
+        if (searchde_record.file_type==FT_REGULAR)
+        {
+            printk("%s is regular file!\n", name);
+        } else {
+            ret = inode_open(cur_part, inode_no);
+        }
+    }
+    dir_close(searchde_record.parent_dir);
+    return ret;
+}
+int32_t sys_closedir(struct dir* dir)
+{
+    int32_t ret = -1;
+    if (dir!=NULL) {
+        dir_close(dir);
+        ret = 0;
+    }
+    return ret;
+}
+struct dir_entry* sys_readdir(struct dir* dir)
+{
+    return dir_read(dir);
+}
+void sys_rewinddir(struct dir* dir)
+{
+    dir->dir_pos = 0;
+    return;
+}
