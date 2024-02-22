@@ -233,6 +233,7 @@ struct arean* block2arena(struct mem_block *b)
 {
     return (struct arean*)((uint32_t)b & 0xfffff000);
 }
+//申请内存块
 void * sys_malloc(uint32_t size)
 {
     enum pool_flags pf;//标志
@@ -412,6 +413,7 @@ void mfree_page(enum pool_flags pf, void* _vaddr, uint32_t pg_cnt)
         vaddr_remove(pf, _vaddr, pg_cnt);
     }
 }
+//释放内存
 void* sys_free(void *p)
 {
     ASSERT(p != NULL);//确保p不是
@@ -448,6 +450,20 @@ void* sys_free(void *p)
         }
     }
     lock_release(&pool->lock);
+}
+void* get_a_page_without_opvaddrbitmap(enum pool_flags pf, uint32_t vaddr)
+{
+    struct mem_pool* pool = pf & PF_KERNEL ? &kernel_pool : &user_pool;//内存池
+    lock_acquire(&pool->lock);
+    void* page_phyvaddr = palloc(pool);//分配一页物理内存
+    if (page_phyvaddr == NULL)//处理内存分配失败的情况
+    {
+        lock_release(&pool->lock);
+        return NULL;
+    }
+    page_table_add(vaddr, page_phyvaddr);
+    lock_release(&pool->lock);
+    return (void*)vaddr;
 }
 void mem_init() {
     put_str("mem_init start\n");

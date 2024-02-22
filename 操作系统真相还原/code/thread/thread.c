@@ -16,7 +16,7 @@ struct lock lock_pid;		    // 分配pid锁
 static struct list_node* thread_tag;// 用于保存队列中的线程结点
 
 extern void switch_to(struct task_pcb* cur, struct task_pcb* next);
-
+extern void init(void);
 /* 获取当前线程pcb指针 */
 struct task_pcb* running_thread() {
    uint32_t esp; 
@@ -87,8 +87,12 @@ void init_thread(struct task_pcb* pthread, char* name, int prio) {
         pthread->fd_table[fd_idx] = -1;
         fd_idx++;
     }
+    pthread->cwd_inode_nr = 0;
+    pthread->parent_pid = -1;
     pthread->stack_magic = 0x12345678;  // 自定义的魔数
 }
+
+pid_t fork_pid(void) { return allocate_pid(); }
 
 /* 创建一优先级为prio的线程,线程名为name,线程所执行的函数是function(func_arg) */
 struct task_pcb* thread_start(char* name,

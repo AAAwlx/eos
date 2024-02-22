@@ -74,7 +74,9 @@ struct task_pcb {
     uint32_t* pgdir;                      // 进程自己页表的虚拟地址
     struct virtual_addr userprog_vaddar;  // 进程的虚拟内存管理结构体
     struct mem_block_desc u_block_descs[DESC_CNT];
-    uint32_t stack_magic;  // 用这串数字做栈的边界标记,用于检测栈的溢出
+    uint32_t cwd_inode_nr;  // 进程所在的工作目录的inode编号
+    int16_t parent_pid;     // 父进程的pid
+    uint32_t stack_magic;   // 用这串数字做栈的边界标记,用于检测栈的溢出
 };
 
 extern struct list general_list;
@@ -94,4 +96,5 @@ void thread_init(void);
 void thread_unlock(struct task_pcb* pthread);
 void thread_lock(enum task_stat stat);
 void thread_yield();
+pid_t fork_pid(void);
 #endif
