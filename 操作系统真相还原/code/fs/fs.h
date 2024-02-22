@@ -26,6 +26,12 @@ struct path_search_record {
    struct dir* parent_dir;		    // 文件或目录所在的直接父目录
    enum file_types file_type;		    // 找到的是普通文件还是目录,找不到将为未知类型(FT_UNKNOWN)
 };
+struct stat {
+  uint32_t st_ino;              // inode编号
+  uint32_t st_size;             // 尺寸
+  enum file_types st_filetype;  // 文件类型
+};
+
 enum whence {
    SEEK_SET = 1,
    SEEK_CUR,
@@ -48,4 +54,10 @@ struct dir* sys_opendir(const char* name);
 int32_t sys_closedir(struct dir* dir);
 struct dir_entry* sys_readdir(struct dir* dir);
 void sys_rewinddir(struct dir* dir);
+int32_t sys_rmdir(const char* pathname);
+static uint32_t get_parent_dir_inode_nr(uint32_t child_inode_nr, void* io_buf);
+static int get_child_dir_name(uint32_t p_inode_nr,uint32_t c_inode_nr,char* path,void* io_buf);
+int32_t sys_chdir(const char* path);
+char* sys_getcwd(char* buf, uint32_t size);
+int32_t sys_stat(const char* path, struct stat* buf);
 #endif

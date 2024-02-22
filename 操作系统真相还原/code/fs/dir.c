@@ -227,10 +227,10 @@ bool delete_dir_entry(struct partition* part, struct dir* pdir, uint32_t inode_n
 		{
 			if ((dir_e+dir_entry_idx)->f_type!=FT_UNKNOWN)
 			{
-				if (!strcmp((dir_e + dir_entry_idx)->filename, "."))//
+				if (!strcmp((dir_e + dir_entry_idx)->filename, "."))//访问第一个扇区就找到待删除的项时is_dir_first_block为true,后面的扇区会被改为false且不会再进入该循环
 				{
                     is_dir_first_block = true;        
-                } else if (strcmp((dir_e + dir_entry_idx) ->filename,".") &&strcmp((dir_e + dir_entry_idx) ->filename,".."))  
+                } else if (strcmp((dir_e + dir_entry_idx) ->filename,".") &&strcmp((dir_e + dir_entry_idx) ->filename,".."))//排除..和.这两个目录项不能被删除 
                 {
                     dir_entry_cnt++;                 // 统计此扇区内的目录项个数,用来判断删除目录项后是否回收该扇区
 					if ((dir_e + dir_entry_idx)->i_no ==inode_no)//如果是需要删除的i节点
@@ -330,13 +330,13 @@ struct dir_entry* dir_read(struct dir*  dir)
         while (dir_entry_idx<dir_entrys_per_sec) {
             if ((dir_e + dir_entry_idx)->f_type != FT_UNKNOWN)
             {
-                if (cur_dir_entry_pos<=dir->dir_pos)    
+                if (cur_dir_entry_pos<=dir->dir_pos) //如果小于上次的偏移
                 {
                     cur_dir_entry_pos+=dir_entry_size;
                     dir_entry_idx++;
                     continue;
                 }
-                ASSERT(cur_dir_entry_pos == dir->dir_pos);
+                ASSERT(cur_dir_entry_pos == dir->dir_pos);//更新上次的偏移量
                 dir->dir_pos += dir_entry_size;
                 return dir_e + dir_entry_idx;
             }
@@ -345,4 +345,30 @@ struct dir_entry* dir_read(struct dir*  dir)
         block_idx++;
     }
     return NULL;
+}
+bool dir_is_empty(struct dir* dir)
+{
+    //如果只有.和..说明目录已经空了
+    struct inode* dir_inode = dir->inode;
+    return (dir->inode->i_size == cur_part->sb->dir_entry_size * 2);
+}
+int32_t dir_remove(struct dir* parent_dir, struct dir* chile_dir)
+{
+    struct inode* chile_dir_inode = chile_dir->inode;
+    int32_t block_idx = 1;
+    while (block_idx<13)
+    {
+        ASSERT(chile_dir_inode->i_sectors[block_idx] == 0);
+        block_idx++;
+    }
+    void* io_buf = sys_malloc(SECTOR_SIZE * 2);
+    if (io_buf==NULL)
+    {
+        printk("dir_remove: malloc for io_buf failed\n");
+        return -1;
+    }
+    delete_dir_entry(cur_part, parent_dir, chile_dir_inode->i_no, io_buf);//删除掉在父目录里的目录项
+    inode_release(cur_part, chile_dir_inode->i_no);//关闭inode结构
+    sys_free(io_buf);
+    return 0;
 }
