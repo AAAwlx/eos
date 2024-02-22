@@ -882,3 +882,30 @@ int32_t sys_stat(const char* path, struct stat* buf)//获取属性
     dir_close(searched_record.parent_dir);
     return ret;
 }
+int32_t sys_create(const char* pathname) 
+{
+    if (pathname[strlen(pathname) - 1] == '/') {//排除结尾是/的情况，结尾是/为目录
+        printk("can't open a directory %s \n", pathname);
+        return -1;
+    }
+    uint32_t pathname_depth = path_depth_cnt((char*)pathname);
+    struct path_search_record searched_record;
+    memset(&searched_record, 0, sizeof(struct path_search_record));
+    int inode_no = search_file(pathname, &searched_record);
+    if (inode_no == -1)
+    {
+        return -1;
+    }
+    uint32_t path_search_depth = path_depth_cnt((char*)searched_record.searched_path);
+    if (path_search_depth!=pathname_depth)//若没有访问到全部路径则返回失败
+    {
+        printk("cannot access %s: Not a directory, subpath %s is't exist\n",
+           pathname, searched_record.searched_path);
+        dir_close(searched_record.parent_dir);
+        return -1;
+    }
+    int32_t fd = file_create(searched_record.parent_dir, (strrchr(pathname,'/') + 1),O_CREAT);
+    dir_close(searched_record.parent_dir);
+    sys_close(fd);
+    return 0;
+}

@@ -155,17 +155,17 @@ static void intr_keyboard_handler(void) {
         if (cur_char)  // 如果不是0
         {
             
-             put_char(cur_char);
-            return;
+             /*put_char(cur_char);
+            return;*/
         
-            /*if ((ctrl_down_last && cur_char == 'l')||(ctrl_down_last && cur_char == 'u')) {
+            if ((ctrl_down_last && cur_char == 'l')||(ctrl_down_last && cur_char == 'u')) {
 	            cur_char -= 'a';
 	        }
             if (!ioq_full(&kbd_buf))
             {
                 ioq_putchar(&kbd_buf, cur_char);
             }
-            return;*/
+            return;
         } else {  // 如果是0,则是控制键盘
             if (code == ctrl_l_make || code == ctrl_r_make) {
                 ctrl_status = true;
@@ -180,7 +180,7 @@ static void intr_keyboard_handler(void) {
 
     } else  // 如果不是主键区
     {
-        put_str("unknown key\n");
+       // put_str("unknown key\n");
     }
 }
 static void intr_keyboard_handler1(void) {

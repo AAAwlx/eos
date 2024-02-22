@@ -29,7 +29,10 @@ static copy_pcb_vaddrbitmap_stack0(struct task_pcb* child_thread,struct task_pcb
     uint32_t bitmap_pg_cnt =
       DIV_ROUND_UP((0xc0000000 - USER_VADDR_START) / PG_SIZE / 8, PG_SIZE);
     void* vaddr_btmp = get_kernel_pages(bitmap_pg_cnt);
-
+    if (vaddr_btmp == NULL)
+    {
+        return -1;
+    }
   // 让子进程指向自己的位图
     memcpy(vaddr_btmp, child_thread->userprog_vaddar.vaddr_bitmap.bits,
          bitmap_pg_cnt * PG_SIZE);//将原有的父目录中的内容拷贝到新分配的虚拟地址页中

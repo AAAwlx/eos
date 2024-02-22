@@ -40,6 +40,16 @@
         "init.h": "c",
         "ide.h": "c",
         "super_block.h": "c",
-        "fs.h": "c"
+        "fs.h": "c",
+        "array": "c",
+        "executor": "c",
+        "memory": "c",
+        "future": "c",
+        "istream": "c",
+        "functional": "c",
+        "tuple": "c",
+        "utility": "c",
+        "variant": "c",
+        "limits": "c"
     }
 }

@@ -3,7 +3,7 @@
 # include "string.h"
 #include "stdint.h"
 #include "global.h"
-
+#include"fs.h"
 static void itoa(uint32_t value, char** buf_ptr_addr, uint8_t base)
 {
     uint32_t m = value % base;//求模拆出最低位
@@ -82,5 +82,5 @@ uint32_t printf(const char* format, ...)
     char buffer[1024] = {0};
     vsprintf(buffer, format, args);
     va_end(args);
-    return write(buffer);
+    return write(1,buffer,strlen(buffer));
 }
