@@ -124,7 +124,7 @@ static void cmd_exectue(uint32_t argc, char** argv)
         buildin_pwd(argc, argv);
     } else if (!strcmp("help", argv[0])) {
         buildin_help(argc, argv);
-    } else{
+    } else{// 如果是外部命令,需要从磁盘上加载
         int32_t pid = fork();
         if (pid) {  // 父进程
             int32_t status;
@@ -137,7 +137,16 @@ static void cmd_exectue(uint32_t argc, char** argv)
         }else
         {
             make_clear_abs_path(argv[0], final_path);
-
+            struct stat file_stat;
+            argv[0] = final_path;
+            if (stat(argv[0], &file_stat))
+            {
+                printf("my_shell: cannot access %s,No such file or directory\n",
+               argv[0]);
+            }else
+            {
+                execv(argv[0], argv);
+            }
         }
         int32_t arg_idx = 0;
         while (arg_idx < MAX_ARG_NR) {
