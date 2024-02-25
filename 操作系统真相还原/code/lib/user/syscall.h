@@ -56,6 +56,10 @@ struct dir_entry* readdir(struct dir* dir);
 void rewinddir(struct dir* dir);
 int32_t stat(const char* path, struct stat* buf);
 int32_t chdir(const char* path);
+void ps(void);
 void put_color(char* str, real_color_t color);
 int32_t create(const char* pathname);
+int32_t execv(const char* path, char* argv[]);
+void exit(int32_t status);
+pid_t wait(int32_t* status);
 #endif

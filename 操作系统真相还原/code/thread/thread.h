@@ -76,7 +76,8 @@ struct task_pcb {
     struct mem_block_desc u_block_descs[DESC_CNT];
     uint32_t cwd_inode_nr;  // 进程所在的工作目录的inode编号
     int16_t parent_pid;     // 父进程的pid
-    uint32_t stack_magic;   // 用这串数字做栈的边界标记,用于检测栈的溢出
+    int8_t exit_status;    //进程结束调用时传入自己的返回值
+    uint32_t stack_magic;  // 用这串数字做栈的边界标记,用于检测栈的溢出
 };
 
 extern struct list general_list;
@@ -86,10 +87,7 @@ void thread_create(struct task_pcb* pthread,
                    thread_func function,
                    void* func_arg);
 void init_thread(struct task_pcb* pthread, char* name, int prio);
-struct task_pcb* thread_start(char* name,
-                              int prio,
-                              thread_func function,
-                              void* func_arg);
+struct task_pcb* thread_start(char* name,int prio,thread_func function,void* func_arg);
 struct task_pcb* running_thread(void);
 void schedule(void);
 void thread_init(void);
@@ -97,4 +95,8 @@ void thread_unlock(struct task_pcb* pthread);
 void thread_lock(enum task_stat stat);
 void thread_yield();
 pid_t fork_pid(void);
+void release_pid(pid_t pid);
+void thread_exit(struct task_pcb* thread_over, bool need_schedule);
+struct task_pcb* pid2thread(int32_t pid);
+void sys_ps(void);
 #endif

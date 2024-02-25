@@ -98,22 +98,25 @@ void create_dir_entry(char* filename, uint32_t inode_no, uint8_t file_type, stru
 }
 bool sync_dir_entry(struct dir* parent_dir, struct dir_entry* p_de,
                     void* io_buf) {
-  struct inode* dir_inode = parent_dir->inode;
-  uint32_t dir_size = dir_inode->i_size;
-  uint32_t dir_entry_size = cur_part->sb->dir_entry_size;
+   struct inode* dir_inode = parent_dir->inode;
+   uint32_t dir_size = dir_inode->i_size;
+   uint32_t dir_entry_size = cur_part->sb->dir_entry_size;
 
-  ASSERT(dir_size % dir_entry_size == 0);  // 保证是整数个条目
-  uint32_t dir_entrys_per_sec =
-      (SECTOR_SIZE / dir_entry_size);  // 每一个扇区的条目个数
-  int32_t block_lba = -1;
+   ASSERT(dir_size % dir_entry_size == 0);  // 保证是整数个条目
+    uint32_t dir_entrys_per_sec = (SECTOR_SIZE / dir_entry_size);  // 每一个扇区的条目个数
+    int32_t block_lba = -1;
 
-  uint8_t block_idx = 0;
-  uint32_t all_blocks[140] = {0};  // all_blocks 保存目录所有的块
+    uint8_t block_idx = 0;
+    uint32_t all_blocks[140] = {0};  // all_blocks 保存目录所有的块
 
-  while (block_idx < 12) {
-    all_blocks[block_idx] = dir_inode->i_sectors[block_idx];
-    block_idx++;
-  }
+    while (block_idx < 12) {
+        all_blocks[block_idx] = dir_inode->i_sectors[block_idx];
+        block_idx++;
+    }
+    if (dir_inode->i_sectors[12]!=0)
+    {
+        ide_read(cur_part->my_disk, all_blocks + 12, dir_inode->i_sectors[12],1);
+    }
 
   struct dir_entry* dir_e = (struct dir_entry*)io_buf;
   int32_t block_bitmap_idx = -1;

@@ -36,7 +36,7 @@ int32_t pcb_fd_install(int32_t globa_fd_idx)
 {
     struct task_pcb* thread = running_thread();
     uint8_t index=3;
-    while (index) {
+    while (index< MAX_FILES_OPEN_PER_PROC) {
         if (thread->fd_table[index]==-1)
         {
             thread->fd_table[index] = globa_fd_idx;
@@ -47,7 +47,7 @@ int32_t pcb_fd_install(int32_t globa_fd_idx)
     if (index==MAX_FILES_OPEN_PER_PROC)
     {
         printk("exceed max open files_per_proc\n");
-      return -1;
+        return -1;
     }
     return index;//返回文件描述符号
 }

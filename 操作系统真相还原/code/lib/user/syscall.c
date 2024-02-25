@@ -135,3 +135,10 @@ void put_color(char* str, real_color_t color) {
 int32_t chdir(const char* path) { return _syscall1(SYS_CHDIR, path); }
 
 int32_t create(const char* pathname) { return _syscall1(SYS_CREAT, pathname); }
+
+int32_t execv(const char* path, char* argv[]) {
+  return _syscall2(SYS_EXECV, path, argv);
+}
+void ps(void) { _syscall0(SYS_PS); }
+void exit(int32_t status) { _syscall1(SYS_EXIT, status); }
+pid_t wait(int32_t* status) { return _syscall1(SYS_WAIT, status); }

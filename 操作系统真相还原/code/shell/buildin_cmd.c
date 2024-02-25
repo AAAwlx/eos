@@ -219,7 +219,11 @@ void buildin_ls(uint32_t argc, char** argv)
 }
 void buildin_ps(uint32_t argc, char** argv UNUSED)
 {
-
+    if (argc != 1) {
+        printf("ps: no argument support!\n");
+        return;
+    }
+    ps();
 }
 void buildin_clear(uint32_t argc, char** argv UNUSED)
 {

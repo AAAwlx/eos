@@ -115,3 +115,22 @@ void u_prog_b(void) {
     while (1)
         ;
 }
+void init(void) {
+  uint32_t ret_pid = fork();
+  if (ret_pid) {
+    int status;
+    int child_pid;
+    /* init 在此处不停地回收僵尸进程 */
+    while (1) {
+      child_pid = wait(&status);
+      printf(
+          "I`m init, My pid is 1, I recieve a child, It`s pid is %d, status is "
+          "%d\n",
+          child_pid, status);
+    }
+  } else {
+    my_shell();
+  }
+  while (1)
+    ;
+}
