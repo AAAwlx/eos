@@ -1,5 +1,5 @@
 #include "fork.h"
-
+#include"pipe.h"
 #include "bitmap.h"
 #include "debug.h"
 #include "file.h"
@@ -103,7 +103,12 @@ static void update_inode_open_cnts(struct task_pcb* thread)
         global_fd = thread->fd_table[local_fd];
         if (global_fd != -1)
         {
-            file_table[global_fd].fd_inode->i_open_cnts++;
+            if (is_pipe(local_fd))
+            {
+                file_table[global_fd].fd_pos++;
+            } else {
+                file_table[global_fd].fd_inode->i_open_cnts++;
+            }
         }
         local_fd++;
     }

@@ -1,44 +1,47 @@
-#ifndef __LIB_USER_SYSCALL_H
-#define __LIB_USER_SYSCALL_H
-#include "thread.h"
-#include"print.h"
-//该结构体中定义了系统调用的调用号
+#ifndef LIB_USER_SYSCALL
+#define LIB_USER_SYSCALL
+
+#include <stdint.h>
+
+#include "fs.h"
+#include "print.h"
+
 enum SYSCALL_NR {
-   SYS_GETPID,
-   SYS_WRITE,
-   SYS_MALLOC,
-   SYS_FREE,
-   SYS_FORK,
-   SYS_READ,
-   SYS_PUTCHAR,
-   SYS_CLEAR,
-   SYS_GETCWD,
-   SYS_OPEN,
-   SYS_CLOSE,
-   SYS_LSEEK,
-   SYS_UNLINK,
-   SYS_MKDIR,
-   SYS_OPENDIR,
-   SYS_CLOSEDIR,
-   SYS_CHDIR,
-   SYS_RMDIR,
-   SYS_READDIR,
-   SYS_REWINDDIR,
-   SYS_STAT,
-   SYS_PS,
-   SYS_EXECV,
-   SYS_EXIT,
-   SYS_WAIT,
-   SYS_PIPE,
-   SYS_FD_REDIRECT,
-   SYS_HELP,
-   SYS_CREAT,
-   SYS_PUT_COLOR
+  SYS_GETPID,
+  SYS_WRITE,
+  SYS_MALLOC,
+  SYS_FREE,
+  SYS_FORK,
+  SYS_READ,
+  SYS_PUTCHAR,
+  SYS_CLEAR,
+  SYS_GETCWD,
+  SYS_OPEN,
+  SYS_CLOSE,
+  SYS_LSEEK,
+  SYS_UNLINK,
+  SYS_MKDIR,
+  SYS_OPENDIR,
+  SYS_CLOSEDIR,
+  SYS_CHDIR,
+  SYS_RMDIR,
+  SYS_READDIR,
+  SYS_REWINDDIR,
+  SYS_STAT,
+  SYS_PS,
+  SYS_PUT_COLOR,
+  SYS_CREAT,
+  SYS_EXECV,
+  SYS_EXIT,
+  SYS_WAIT,
+  SYS_PIPE,
+  SYS_FD_REDIRECT,
+  SYS_HELP
 };
 uint32_t getpid(void);
 uint32_t write(int32_t fd, const void* buf, uint32_t count);
 void* malloc(uint32_t size);
-void free(void* p);
+void free(void* ptr);
 int16_t fork(void);
 int32_t read(int32_t fd, void* buf, uint32_t count);
 void putchar(char char_asci);
@@ -62,4 +65,7 @@ int32_t create(const char* pathname);
 int32_t execv(const char* path, char* argv[]);
 void exit(int32_t status);
 pid_t wait(int32_t* status);
-#endif
+int32_t pipe(int32_t pipefd[2]);
+void fd_redirect(uint32_t old_local_fd, uint32_t new_local_fd);
+void help(void);
+#endif /* LIB_USER_SYSCALL */

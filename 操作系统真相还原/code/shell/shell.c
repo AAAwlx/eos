@@ -1,9 +1,8 @@
 #include "shell.h"
-
 #include "assert.h"
 #include "buildin_cmd.h"
 #include "dir.h"
-//#include "exec.h"
+#include "exec.h"
 #include "file.h"
 #include "fs.h"
 #include "global.h"
@@ -171,8 +170,32 @@ void my_shell(void)
         char* pipe_symbol = strchr(cmd_line, '|');
         if (pipe_symbol)//有管道
         {
-            /* code */
-        }else{
+            int32_t fd[2] = {-1, -1};
+            pipe(fd);
+            fd_redirect(1, fd[1]);//重定向输出到
+            char* each_cmd = cmd_line;
+            pipe_symbol = strchr(cmd_line, '|');
+            *pipe_symbol = 0;
+            argc = -1;
+            argc = cmd_parse(each_cmd, argv, ' ');
+            cmd_exectue(argc, argv);
+            each_cmd = pipe_symbol+ 1;//跨过|
+            fd_redirect(0, fd[0]);
+            while ((pipe_symbol = strchr(each_cmd, '|'))) {
+                *pipe_symbol = 0;
+                argc = -1;
+                argc = cmd_parse(each_cmd, argv, ' ');
+                cmd_exectue(argc, argv);
+                each_cmd = pipe_symbol + 1;
+            }
+            fd_redirect(1, 1);
+            argc = -1;
+            argc = cmd_parse(each_cmd, argv, ' ');
+            cmd_exectue(argc, argv);
+            fd_redirect(0, 0);
+            close(fd[0]);
+            close(fd[1]);
+        } else {
             argc = -1;
             argc = cmd_parse(cmd_line, argv, ' ');
             if (argc == -1)

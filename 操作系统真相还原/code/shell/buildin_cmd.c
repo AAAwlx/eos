@@ -6,11 +6,11 @@
 #include "dir.h"
 #include "fs.h"
 #include "global.h"
-#include"shell.h"
+#include "shell.h"
 #include "stdio.h"
 #include "string.h"
-#include "../lib/user/syscall.h"
-#include"assert.h"
+#include "syscall.h"
+
 #define WHITE 15
 #define BLUE 14
 #define RED 12

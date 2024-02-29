@@ -9,7 +9,7 @@
 #include "process.h"
 #include "sysnc.h"
 #include"file.h"
-#include"fs.c"
+//#include"fs.c"
 struct task_struct* idle_thread;
 struct task_pcb* main_thread;    // 主线程PCB
 struct list general_list;	    // 就绪队列
@@ -73,7 +73,7 @@ static bool pid_check(struct list_node* pelem, int32_t pid)
     }
     return false;
 }
-struct task_struct* pid2thread(int32_t pid)
+struct task_pcb* pid2thread(int32_t pid)
 {
     struct list_node* node= list_traversal(&all_list, pid_check, pid);
     if (node == NULL)
@@ -339,7 +339,7 @@ void thread_init(void) {
    lock_init(&lock_pid);
    pid_pool_init();
   /* 先创建第一个用户进程:init */
-  process_execute(init, "init");
+  //process_execute(init, "init");
   /* 将当前 main 函数创建为线程 */
 /* 将当前main函数创建为线程 */
    make_main_thread();

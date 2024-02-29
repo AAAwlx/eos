@@ -7,6 +7,7 @@ static uint16_t* video_memory = (uint16_t*)0xc00b8000;
 static const uint8_t attribute_byte = (0 << 4) | (15 & 0x0F);
 // 空格
 static const uint16_t blank = 0x20 | (attribute_byte << 8);
+//写入光标位置
 void set_cursor()
 {
     uint16_t p = cursor_x + cursor_y * 80;

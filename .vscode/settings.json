@@ -50,6 +50,9 @@
         "tuple": "c",
         "utility": "c",
         "variant": "c",
-        "limits": "c"
+        "limits": "c",
+        "keyboard.h": "c",
+        "pipe.h": "c",
+        "assert.h": "c"
     }
 }

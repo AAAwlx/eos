@@ -4,11 +4,13 @@
 #include "interrupt.h"
 #include "memory.h"
 #include "print.h"
+#include"printk.h"
 #include "process.h"
 #include "stdio.h"
 #include "syscall-init.h"
 #include "syscall.h"
 #include "thread.h"
+#include"shell.h"
 void k_thread_a(void*);
 void k_thread_b(void*);
 void u_prog_a(void);
@@ -25,7 +27,7 @@ int main(void) {
     uint32_t fd = sys_open("/file1",O_CREAT);
     printk("fd:%d\n", fd);
     //sys_write(fd, "hello,world\n", 12);
-    sys_close(fd);
+    //sys_close(fd);
     printk("%d closed now\n", fd);
     while(1);
     return 0;
@@ -116,11 +118,11 @@ void u_prog_b(void) {
         ;
 }
 void init(void) {
-  uint32_t ret_pid = fork();
+  /*uint32_t ret_pid = fork();
   if (ret_pid) {
     int status;
     int child_pid;
-    /* init 在此处不停地回收僵尸进程 */
+    /* init 在此处不停地回收僵尸进程 
     while (1) {
       child_pid = wait(&status);
       printf(
@@ -130,7 +132,7 @@ void init(void) {
     }
   } else {
     my_shell();
-  }
+  }*/
   while (1)
     ;
 }

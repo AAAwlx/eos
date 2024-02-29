@@ -142,3 +142,11 @@ int32_t execv(const char* path, char* argv[]) {
 void ps(void) { _syscall0(SYS_PS); }
 void exit(int32_t status) { _syscall1(SYS_EXIT, status); }
 pid_t wait(int32_t* status) { return _syscall1(SYS_WAIT, status); }
+int32_t pipe(int32_t pipefd[2]) { return _syscall1(SYS_PIPE, pipefd); }
+
+// 重定位
+void fd_redirect(uint32_t old_local_fd, uint32_t new_local_fd) {
+  _syscall2(SYS_FD_REDIRECT, old_local_fd, new_local_fd);
+}
+
+void help(void) { _syscall0(SYS_HELP); }

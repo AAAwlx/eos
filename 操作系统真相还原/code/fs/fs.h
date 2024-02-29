@@ -38,13 +38,13 @@ enum whence {
    SEEK_END
 };
 void filesys_init(void);
-static char* path_parse(char* pathname, char* name_store);
+ char* path_parse(char* pathname, char* name_store);
 int32_t path_depth_cnt(char* pathname);
-static int search_file(const char* pathname,struct path_search_record* searched_record);
+ int search_file(const char* pathname,struct path_search_record* searched_record);
 static void partition_format(struct partition* part);
 int32_t sys_open(const char* pathname, uint8_t flags);
 int32_t sys_close(int32_t fd);
-static uint32_t fd_local2global(uint32_t local_fd);
+ uint32_t fd_local2global(uint32_t local_fd);
 int32_t sys_write(int32_t fd, const void* buf, uint32_t count);
 int32_t sys_read(int32_t fd, void* buf, uint32_t count);
 int32_t sys_lseek(int32_t fd, int32_t offset, uint8_t whence);
@@ -55,8 +55,8 @@ int32_t sys_closedir(struct dir* dir);
 struct dir_entry* sys_readdir(struct dir* dir);
 void sys_rewinddir(struct dir* dir);
 int32_t sys_rmdir(const char* pathname);
-static uint32_t get_parent_dir_inode_nr(uint32_t child_inode_nr, void* io_buf);
-static int get_child_dir_name(uint32_t p_inode_nr,uint32_t c_inode_nr,char* path,void* io_buf);
+ uint32_t get_parent_dir_inode_nr(uint32_t child_inode_nr, void* io_buf);
+ int get_child_dir_name(uint32_t p_inode_nr,uint32_t c_inode_nr,char* path,void* io_buf);
 int32_t sys_chdir(const char* path);
 char* sys_getcwd(char* buf, uint32_t size);
 int32_t sys_stat(const char* path, struct stat* buf);

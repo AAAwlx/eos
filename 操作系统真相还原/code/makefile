@@ -5,7 +5,7 @@ T=thread
 U=userprog
 L=lib
 F=fs
-#S=shell
+S=shell
 LK=lib/kernel
 LU=lib/user
 # BOCHS相关参数
@@ -26,38 +26,46 @@ K_OBJS=$K/main.o \
 D_OBJS=$D/keyboard.o \
        $D/timer.o  \
 	   $D/ioqueue.o \
-	   $D/console.o\
-	   $D/ide.o
+	   $D/ide.o \
+	   $D/console.o
 	   
 
 T_OBJS=$T/sysnc.o \
 	   $T/thread.o 
 
 
-U_OBJS=$U/process.o\
-	  $U/tss.o\
-	  $U/syscall-init.o
+U_OBJS=$U/tss.o \
+	   $U/process.o \
+	   $U/syscall-init.o  \
+	   $U/fork.o \
+	   $U/exec.o \
+	   $U/wait_exit.o 
+
+
 
 F_OBJS=$F/fs.o \
 	   $F/inode.o \
 	   $F/dir.o  \
 	   $F/file.o
 
+S_OBJS=$S/shell.o \
+	   $S/buildin_cmd.o \
+	   $S/pipe.o 
 
-L_OBJS=$L/stdint.o \
-	   $L/string.o \
-	   $L/stdio.o
-	   
-LU_OBJS=${LU}/syscall.o
 
-LK_OBJS=${LK}/bitmap.o \
+L_OBJS=$L/stdio.o \
+       $L/stdint.o \
+	   $L/string.o 
+
+LU_OBJS=${LU}/syscall.o \
+		${LU}/assert.o
+
+LK_OBJS=${LK}/printk.o  \
+		${LK}/bitmap.o \
 		${LK}/list.o \
 		${LK}/io.o \
-		${LK}/print.o\
-		${LK}/printk.o
-
-
-
+		${LK}/print.o
+	
 
 
 
@@ -71,21 +79,21 @@ OBJS=${K_OBJS}   \
 	 ${U_OBJS}   \
 	 ${LK_OBJS}  \
 	 ${LU_OBJS}  \
-	 ${L_OBJS}   \
+	 ${L_OBJS}  \
 	 ${F_OBJS} \
-	 
+	 ${S_OBJS}
 
-include= -I $K -I $D -I $T -I $U -I $L -I $F -I ${LK} -I ${LU} 
+include= -I $K -I $D -I $T -I $U -I $L -I $F -I $S -I ${LK} -I ${LU} 
 
 
 
 
 build:${OBJS}
-	nasm -I $B/include -o $B/mbr.bin   $B/mbr.s 
-	nasm -I $B/include -o $B/loader.bin $B/loader.s 
-	nasm -f elf -o $K/kernel.o $K/kernel.s
-	nasm -f elf -o $T/switch.o $T/switch_to.s
-	ld -m elf_i386 -T kernel.ld -o kernel.bin ${OBJS} $K/kernel.o  $T/switch.o 
+	nasm -I $B/include -o $B/mbr.bin   $B/mbr.s
+	nasm -I $B/include -o $B/loader.bin $B/loader.s
+	nasm -f elf -o $K/kernel.o $K/kernel.s 
+	nasm -f elf -o $T/switch_to.o $T/switch_to.s
+	ld -m elf_i386 -T kernel.ld -o kernel.bin ${OBJS} $K/kernel.o  $T/switch_to.o 
 
 $K/%.o:$K/%.c 
 	gcc ${include} ${GCC_FLAGS} -o $@ $^ 
@@ -94,15 +102,18 @@ $D/%.o:$D/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^ 
 
 $T/%.o:$T/%.c
-	gcc ${include} ${GCC_FLAGS} -o $@ $^
+	gcc ${include} ${GCC_FLAGS} -o $@ $^ 
 
 $U/%.o:$U/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^
 
 $L/%.o:$L/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^
-
+	
 $F/%.o:$F/%.c
+	gcc ${include} ${GCC_FLAGS} -o $@ $^
+
+$S/%.o:$S/%.c
 	gcc ${include} ${GCC_FLAGS} -o $@ $^
 
 ${LK}/%.o:${LK}/%.c

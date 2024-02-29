@@ -10,6 +10,8 @@
 #include"fork.h"
 #include"exec.h"
 #include"wait_exit.h"
+#include"pipe.h"
+#include"wait_exit.h"
 #define syscall_nr 32
 typedef void* syscall;
 syscall syscall_table[syscall_nr];
@@ -21,6 +23,22 @@ uint32_t sys_getpid(void)
     }
 
     return running_thread()->pid;
+}
+void sys_help(void) {
+  printk(
+      "\
+ buildin commands:\n\
+       ls: show directory or file information\n\
+       cd: change current work directory\n\
+       mkdir: create a directory\n\
+       rmdir: remove a empty directory\n\
+       rm: remove a regular file\n\
+       pwd: show current work directory\n\
+       ps: show process information\n\
+       clear: clear screen\n\
+ shortcut key:\n\
+       ctrl+l: clear screen\n\
+       ctrl+u: clear input\n\n");
 }
 void syscall_init()
 {
@@ -52,5 +70,8 @@ void syscall_init()
     syscall_table[SYS_EXECV] = sys_execv;
     syscall_table[SYS_EXIT] = sys_exit;
     syscall_table[SYS_WAIT] = sys_wait;
+    syscall_table[SYS_PIPE] = sys_pipe;
+  syscall_table[SYS_FD_REDIRECT] = sys_fd_redirect;
+  syscall_table[SYS_HELP] = sys_help;
     put_str("syscall_init done\n");
 }

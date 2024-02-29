@@ -4,7 +4,7 @@
 #include "file.h"
 #include "fs.h"
 #include "list.h"
-//#include "pipe.h"
+#include "pipe.h"
 /* 释放用户进程资源:
  * 1 页表中对应的物理页
  * 2 虚拟内存池占物理页框
@@ -57,7 +57,17 @@ static void realease_prog_resource(struct task_pcb* release_thread)
     while (fd_idx<MAX_FILES_OPEN_PER_PROC) {
         if (release_thread->fd_table[fd_idx]!=0)
         {
-            sys_close(fd_idx);
+            if (is_pipe(fd_idx))
+            {
+                uint32_t global_fd = fd_local2global(fd_idx);
+                if (--file_table[global_fd].fd_pos == 0)//如果两个通道都关闭
+                {
+                    mfree_page(PF_KERNEL, file_table->fd_inode, 1);
+                    file_table[global_fd].fd_inode == NULL;
+                }
+            } else {
+                sys_close(fd_idx);
+            }
         }
         fd_idx++;
     }
