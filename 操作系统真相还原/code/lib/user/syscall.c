@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include"thread.h"
 /* 无参数的系统调用 */
 #define _syscall0(NUMBER) ({				       \
    int retval;					               \

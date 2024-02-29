@@ -14,10 +14,14 @@ void list_init (struct list* list) {
 void list_insert_before(struct list_node* before, struct list_node* elem) {
   // 关闭中断，并发安全
   enum intr_status old_status = intr_disable();
+  
   before->prev->next = elem;
+  
   elem->next = before;
+  
   elem->prev = before->prev;
   before->prev = elem;
+  
   intr_set_status(old_status);
 }
 
@@ -28,7 +32,9 @@ void list_push(struct list* plist, struct list_node* elem) {
 
 // 追加元素到队尾
 void list_append(struct list* plist, struct list_node* elem) {
-  list_insert_before(&plist->tail, elem);
+    //put_str("list_append\n");
+    list_insert_before(&plist->tail, elem);
+    
 }
 
 /* 使元素 pelem 脱离链表 */

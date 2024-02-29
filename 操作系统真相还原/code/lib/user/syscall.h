@@ -5,7 +5,7 @@
 
 #include "fs.h"
 #include "print.h"
-
+typedef int16_t pid_t;
 enum SYSCALL_NR {
   SYS_GETPID,
   SYS_WRITE,

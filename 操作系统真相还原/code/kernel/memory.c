@@ -380,11 +380,12 @@ void mfree_page(enum pool_flags pf, void* _vaddr, uint32_t pg_cnt)
             ASSERT((pg_phy_addr % PG_SIZE) == 0 &&
                    pg_phy_addr >= user_pool.phy_addr_start);
             /* 先将对应的物理页框归还到内存池 */
+            
             pfree(pg_phy_addr);
-
+            printk("pfree\n");
             /* 再从页表中清除此虚拟地址所在的页表项pte */
             pagetable_remove(vaddr);
-
+            printk("pagetable_remove\n");
             page_cnt++;
         }
         /* 清空虚拟地址的位图中的相应位 */
@@ -414,8 +415,9 @@ void mfree_page(enum pool_flags pf, void* _vaddr, uint32_t pg_cnt)
     }
 }
 //释放内存
-void* sys_free(void *p)
+void sys_free(void *p)
 {
+    
     ASSERT(p != NULL);//确保p不是
     enum pool_flags pf;
     struct mem_pool* pool;
@@ -430,15 +432,17 @@ void* sys_free(void *p)
     lock_acquire(&pool->lock);
     struct mem_block* b = p;
     struct arean* a = block2arena(b);
-    ASSERT(a->large == 0 || a->large == 1);
+    ASSERT(a->large == false || a->large == true);
     if (a->large == true && a->desc == NULL) {
-        
         mfree_page(pf, a, a->cnt);
     }else
     {
+        printk("mfree_page");
         list_append(&a->desc->freelist, &b->node);
+        
         if (++a->cnt==a->desc->block_per_arena)//如果当前可用内存块数量与该仓库所含有的内存块总数一样则说明整页内存可以回收
         {
+            printk("sys_free\n");
             for (uint8_t i = 0; i < a->cnt; i++)
             {
                 struct mem_block* bi = arena2block(a, i);
@@ -448,6 +452,7 @@ void* sys_free(void *p)
             
             mfree_page(pf, a, 1);
         }
+        
     }
     lock_release(&pool->lock);
 }
