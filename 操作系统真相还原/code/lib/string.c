@@ -5,7 +5,7 @@
 
 //将dst起始的size个字节置为value，这个函数最常用的用法就是来初始化一块内存区域，也就是置为ASCII码为0
 void memset(void* dst_, uint8_t value, uint32_t size) {
-    assert(dst_ != NULL);            //一般开发都有这个习惯，传入进来个地址，判断不是空
+    assert(dst_ != NULL);          
     uint8_t* dst = (uint8_t*)dst_;   //强制类型转换，将对地址的操作单位变成一字节
     while (size-- > 0)               //先判断size是否>0，然后再减，然后执行循环体，size是多少，就会循环多少次
         *dst++ = value;               //*的优先级高于++，所以是先对dst指向的地址进行操作(*dst=value)，然后地址+1
