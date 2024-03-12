@@ -332,7 +332,7 @@ void thread_init(void) {
     lock_init(&lock_pid);
     pid_pool_init();
     /* 先创建第一个用户进程:init */
-    process_execute(init, "init");
+    //process_execute(init, "init");
     /* 将当前 main 函数创建为线程 */
     /* 将当前main函数创建为线程 */
     make_main_thread();
