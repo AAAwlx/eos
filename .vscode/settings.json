@@ -53,6 +53,7 @@
         "limits": "c",
         "keyboard.h": "c",
         "pipe.h": "c",
-        "assert.h": "c"
+        "assert.h": "c",
+        "system_error": "c"
     }
 }
